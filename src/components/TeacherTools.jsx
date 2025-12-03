@@ -3,7 +3,8 @@ import { collection, getDocs, query, where, addDoc, doc, updateDoc, deleteDoc, g
 import { db } from "../firebase";
 import { Icon } from './UI';
 import { timeAgo } from '../utils/mathGenerators';
-import { AUTOMATISMES_DATA } from '../utils/data';
+
+import { AUTOMATISMES_DATA, PROCEDURAL_EXOS, QUESTIONS_DB } from '../utils/data';
 
 
 
@@ -309,10 +310,14 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
 
 
 
-
+const getLevelColor = (count) => {
+    if (count >= 3) return "bg-emerald-500 text-white border-emerald-600";
+    if (count >= 1) return "bg-emerald-200 text-emerald-800 border-emerald-300";
+    return "bg-slate-100 text-slate-300 border-slate-200";
+};
 
 // --- MODALE DÉTAIL ÉLÈVE (UNIQUE ET COMPLÈTE) ---
-const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete, onUnshare, colleagues }) => {
+const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete, onUnshare, colleagues, user }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({ nom: "", identifiant: "", password: "", classe: "", groupe: "" });
     const [shareInput, setShareInput] = useState("");
@@ -336,9 +341,24 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
     const handleSave = () => { onEdit(s.id, editData); setIsEditing(false); };
     const stats = calculateStats(s);
 
+    // --- LOGIQUE AJOUTÉE : Calcul des droits de l'élève ---
+    let studentAllowedIds = [];
+    const allIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
+    const studentClass = s.classe ? s.classe.trim() : "";
+
+    // On vérifie la config du prof connecté (user) pour la classe de l'élève
+    if (studentClass && user.data.classSettings && user.data.classSettings[studentClass]) {
+        studentAllowedIds = user.data.classSettings[studentClass];
+    } else {
+        studentAllowedIds = allIds; // Par défaut tout est ouvert
+    }
+    // -----------------------------------------------------
+
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl pop-in flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+
+                {/* EN-TÊTE */}
                 <div className="bg-indigo-600 p-6 text-white flex justify-between items-start shrink-0">
                     {isEditing ? (
                         <input type="text" value={editData.nom} onChange={e => setEditData({ ...editData, nom: e.target.value })} className="w-full bg-indigo-700 text-white font-black text-xl p-2 rounded border border-indigo-400" />
@@ -360,6 +380,7 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                     )}
                 </div>
 
+                {/* CORPS */}
                 <div className="p-6 overflow-y-auto flex-1 bg-slate-50 space-y-6">
                     {isEditing ? (
                         <div className="space-y-4 bg-white p-4 rounded-xl border">
@@ -385,8 +406,56 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                                 </div>
                             </div>
 
+                            {/* --- SECTION AJOUTÉE : PROGRESSION AUTOMATISMES --- */}
+                            <h3 className="font-bold text-slate-800 text-sm uppercase mt-6 mb-2 flex items-center gap-2">
+                                <Icon name="lightning" className="text-indigo-500" /> Progression Automatismes
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {AUTOMATISMES_DATA.map((cat, i) => (
+                                    <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                        <div className={`bg-${cat.color}-50 px-3 py-2 font-bold text-${cat.color}-800 text-xs uppercase border-b border-${cat.color}-100`}>{cat.title}</div>
+                                        <div className="p-2 space-y-1">
+                                            {cat.exos.map(exo => {
+                                                // Vérifications techniques et droits
+                                                const isTechnicallyReady = PROCEDURAL_EXOS.includes(exo.id) || (QUESTIONS_DB[exo.id] && QUESTIONS_DB[exo.id][1] && QUESTIONS_DB[exo.id][1].length > 0);
+                                                const isAllowedForStudent = studentAllowedIds.includes(exo.id);
+                                                const isAvailable = isTechnicallyReady && isAllowedForStudent;
+
+                                                // Si bloqué -> Cadenas
+                                                if (!isAvailable) {
+                                                    return (
+                                                        <div key={exo.id} className="flex justify-between items-center p-2 rounded opacity-40 bg-slate-50">
+                                                            <span className="text-xs text-slate-400 flex items-center gap-2"><Icon name="lock-key" /> {exo.title}</span>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                // Affichage progression
+                                                const progress = s.training?.[exo.id] || {};
+                                                return (
+                                                    <div key={exo.id} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded">
+                                                        <span className="text-xs font-bold text-slate-700 truncate mr-2" title={exo.title}>{exo.title}</span>
+                                                        <div className="flex gap-1 shrink-0">
+                                                            {[1, 2, 3].map(lvl => {
+                                                                const count = progress[lvl] || 0;
+                                                                return (
+                                                                    <div key={lvl} className={`w-5 h-5 rounded border flex items-center justify-center text-[9px] font-bold ${getLevelColor(count)}`}>
+                                                                        {count >= 3 ? <Icon name="check" /> : lvl}
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {/* -------------------------------------------------- */}
+
                             {/* PARTAGE */}
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-6">
                                 <h3 className="font-bold text-purple-800 text-sm mb-3 flex items-center gap-2"><Icon name="share-network" /> Partage Collègues</h3>
                                 {s.sharedWith && s.sharedWith.map((profId, idx) => (
                                     <div key={idx} className="flex justify-between items-center bg-purple-50 p-2 rounded border border-purple-100 text-sm mb-2">
