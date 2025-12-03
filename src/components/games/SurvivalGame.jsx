@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../firebase";
 import { Icon, Leaderboard } from '../UI';
-import { QUESTIONS_DB, PROCEDURAL_EXOS, AUTOMATISMES_DATA, TRAINING_MODULES, QUESTIONS_TABLES, QUESTIONS_DIVISIONS } from '../../utils/data';
+import { QUESTIONS_DB, PROCEDURAL_EXOS, AUTOMATISMES_DATA, TRAINING_MODULES } from '../../utils/data';
 import {
     generateFractionQuestion,
     generateDecimalQuestion,
@@ -13,9 +13,6 @@ import {
     generateScientificNotationQuestion,
     generateSquareQuestion
 } from '../../utils/mathGenerators';
-import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
-
-
 
 const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
     const [q, setQ] = useState(null);
@@ -23,54 +20,30 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
     const [timeLeft, setTimeLeft] = useState(15);
     const [gameOver, setGameOver] = useState(false);
     const [leaders, setLeaders] = useState({ my: [], class: [], profs: [] });
-
-    // NOUVEAU : État pour gérer l'affichage de l'aide avant la mort
     const [feedback, setFeedback] = useState(null);
 
-    // Gestion de la fin de partie et chargement du classement
-    // Dans SurvivalGameLogic
+    // --- CHARGEMENT CLASSEMENT (inchangé) ---
     useEffect(() => {
         if (gameOver) {
             let isMounted = true;
             const fetchOptimizedLeaderboard = async () => {
-
                 const dbRef = db;
-
-                // Le nom du champ qu'on a créé dans saveProgress
                 const fieldName = `best_scores.${modeId}`;
-
                 try {
-                    // 1. Requête optimisée pour les ÉLÈVES (Top 5)
-                    const qEleves = query(
-                        collection(dbRef, "eleves"),
-                        orderBy(fieldName, "desc"), // Descendant = le plus grand score en premier
-                        limit(5)
-                    );
-
-                    // 2. Requête optimisée pour les PROFS (Top 5)
-                    const qProfs = query(
-                        collection(dbRef, "profs"),
-                        orderBy(fieldName, "desc"),
-                        limit(5)
-                    );
-
-                    // On lance les deux en parallèle
+                    const qEleves = query(collection(dbRef, "eleves"), orderBy(fieldName, "desc"), limit(5));
+                    const qProfs = query(collection(dbRef, "profs"), orderBy(fieldName, "desc"), limit(5));
                     const [snapE, snapP] = await Promise.all([getDocs(qEleves), getDocs(qProfs)]);
-
                     if (!isMounted) return;
 
-                    // Fonction pour formater les données reçues
                     const formatLeaders = (snap) => {
                         return snap.docs.map(doc => ({
                             nom: doc.data().nom || "Anonyme",
                             classe: doc.data().classe || "-",
-                            // On va chercher le score directement là où on l'a rangé
                             val: doc.data().best_scores?.[modeId] || 0,
                             isUser: doc.id === user.data.id
                         }));
                     };
 
-                    // Pour "Mon historique", on garde l'ancienne méthode locale (c'est léger car c'est juste l'user courant)
                     let myRaw = user.data.survival_history?.[modeId];
                     let myArr = Array.isArray(myRaw) ? myRaw : (typeof myRaw === 'number' ? [myRaw] : []);
                     const myHistory = myArr
@@ -78,17 +51,9 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                         .sort((a, b) => b.val - a.val)
                         .slice(0, 5);
 
-                    setLeaders({
-                        my: myHistory,
-                        class: formatLeaders(snapE),
-                        profs: formatLeaders(snapP)
-                    });
-
-                } catch (err) {
-                    console.error("Erreur lecture classement (Index manquant ?):", err);
-                }
+                    setLeaders({ my: myHistory, class: formatLeaders(snapE), profs: formatLeaders(snapP) });
+                } catch (err) { console.error("Erreur classement:", err); }
             };
-
             fetchOptimizedLeaderboard();
             return () => { isMounted = false; };
         }
@@ -100,30 +65,22 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
         LEGENDE: { time: 15, level: 3 }
     };
 
+    // --- GÉNÉRATION QUESTION (inchangé) ---
     const nextQ = async () => {
-        setFeedback(null);
-
+        setFeedback(null); // On cache le feedback pour la nouvelle question
         const currentModeConfig = modes[modeId];
         const currentLevel = currentModeConfig.level;
 
-        const allSources = [
-            ...AUTOMATISMES_DATA.flatMap(cat => cat.exos),
-            ...TRAINING_MODULES
-        ];
-
-        const allPlayableIds = allSources
-            .map(e => e.id)
-            .filter(id => {
-                if (user.allowed && !user.allowed.includes(id)) return false;
-                if (PROCEDURAL_EXOS.includes(id)) return true;
-                if (QUESTIONS_DB[id] && QUESTIONS_DB[id][currentLevel] && QUESTIONS_DB[id][currentLevel].length > 0) {
-                    return true;
-                }
-                return false;
-            });
+        const allSources = [...AUTOMATISMES_DATA.flatMap(cat => cat.exos), ...TRAINING_MODULES];
+        const allPlayableIds = allSources.map(e => e.id).filter(id => {
+            if (user.allowed && !user.allowed.includes(id)) return false;
+            if (PROCEDURAL_EXOS.includes(id)) return true;
+            if (QUESTIONS_DB[id] && QUESTIONS_DB[id][currentLevel] && QUESTIONS_DB[id][currentLevel].length > 0) return true;
+            return false;
+        });
 
         if (allPlayableIds.length === 0) {
-            alert("Aucune question disponible pour ce niveau !");
+            alert("Aucune question disponible !");
             onFinish(score);
             return;
         }
@@ -133,14 +90,10 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
 
         if (PROCEDURAL_EXOS.includes(randId)) {
             try {
-                // CORRECTION CRASH : On utilise directement 'db' importé en haut, plus sûr.
                 const docRef = doc(db, "configs_exercices", randId);
                 const snap = await getDoc(docRef);
-
                 let params = { level: currentLevel };
-                if (snap.exists() && snap.data()[currentLevel]) {
-                    params = { ...snap.data()[currentLevel], level: currentLevel };
-                }
+                if (snap.exists() && snap.data()[currentLevel]) params = { ...snap.data()[currentLevel], level: currentLevel };
 
                 if (randId === 'auto_1_ecriture_decimale_fractions') quest = generateFractionQuestion(params);
                 else if (randId === 'auto_2_comparaison_calcul_decimaux') quest = generateDecimalQuestion(params);
@@ -150,28 +103,16 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                 else if (randId === 'auto_6_formes_multiples') quest = generateMultipleFormsQuestion(params);
                 else if (randId === 'auto_7_ecriture_sci') quest = generateScientificNotationQuestion(params);
                 else if (randId === 'auto_8_carres_3eme') quest = generateSquareQuestion(params);
-
-
-            } catch (e) {
-                console.error("Erreur générateur", e);
-                // On ne fait rien ici, quest restera null et on relancera proprement plus bas
-            }
-        }
-        else {
+            } catch (e) { console.error(e); }
+        } else {
             const pool = QUESTIONS_DB[randId][currentLevel];
             quest = pool[Math.floor(Math.random() * pool.length)];
         }
 
         if (quest) {
-            // CORRECTION : On garde le texte de la bonne réponse
             const correctTxt = quest.o[quest.c];
             const answers = [...quest.o].sort(() => 0.5 - Math.random());
-
-            setQ({
-                ...quest,
-                mixedAnswers: answers,
-                correctTxt: correctTxt // On l'ajoute ici
-            });
+            setQ({ ...quest, mixedAnswers: answers, correctTxt: correctTxt });
             setTimeLeft(currentModeConfig.time);
         } else {
             setTimeout(() => nextQ(), 500);
@@ -180,66 +121,44 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
 
     useEffect(() => { nextQ(); }, []);
 
-    // TIMER : On l'arrête si feedback est actif (l'élève lit son erreur)
+    // --- TIMER ---
     useEffect(() => {
-        if (gameOver || feedback) return;
+        if (gameOver || feedback) return; // Le timer pause si feedback affiché
         const timer = setInterval(() => { setTimeLeft(t => { if (t <= 0) { clearInterval(timer); setGameOver(true); return 0; } return t - 0.1; }); }, 100);
         return () => clearInterval(timer);
     }, [q, gameOver, feedback]);
 
-    // Dans src/components/Game.jsx, à l'intérieur de SurvivalGameLogic
 
-    // Dans SurvivalGameLogic > handleAnswer
-
+    // --- GESTION RÉPONSE (CORRIGÉE) ---
     const handleAnswer = (idx) => {
-        // 1. Sécurité : On empêche de cliquer deux fois ou si le jeu est fini
-        if (feedback || finished) return;
+        // CORRECTION 1: 'finished' n'existe pas -> 'gameOver'
+        if (feedback || gameOver) return;
 
         const clickedValue = q.mixedAnswers[idx];
         const isCorrect = clickedValue === q.correctTxt;
 
         if (isCorrect) {
-            // --- VICTOIRE ---
             setScore(s => s + 1);
             onSound('CORRECT');
+            setFeedback({ type: 'CORRECT', msg: `Bravo ! ${q.e || ""}` });
 
-            // Feedback visuel positif
-            setFeedback({
-                type: 'CORRECT',
-                msg: `Bravo ! ${q.e || ""}`
-            });
-
-            // On passe automatiquement à la suite après 1s
-            setTimeout(() => {
-                nextQuestion(); // On appelle la BONNE fonction
-            }, 1000);
-
+            // CORRECTION 2: 'nextQuestion' n'existe pas -> 'nextQ'
+            setTimeout(() => { nextQ(); }, 1000);
         } else {
-            // --- DÉFAITE ---
             onSound('WRONG');
-
             let errorMsg = q.e || "";
-            // Gestion fine des feedbacks détaillés si présents
             if (q.detailedFeedback && q.detailedFeedback[clickedValue]) {
                 errorMsg = q.detailedFeedback[clickedValue];
             }
-
-            // Feedback visuel négatif
-            setFeedback({
-                type: 'WRONG',
-                msg: `Oups... ${errorMsg}`
-            });
-
-            // OPTIMISATION : On ne force PAS le passage automatique en cas d'erreur.
-            // On laisse l'élève lire son erreur. 
-            // Le bouton "Suivant" (que tu as déjà dans ton JSX ligne 744) servira à passer.
+            setFeedback({ type: 'WRONG', msg: `Oups... ${errorMsg}` });
+            // Ici on n'appelle pas nextQ() automatiquement, l'utilisateur devra cliquer sur "Continuer"
         }
     };
 
+    // --- VUE GAMEOVER (inchangée) ---
     if (gameOver) return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
             <div className="bg-indigo-800 p-8 rounded-3xl shadow-2xl text-center max-w-4xl w-full pop-in text-white border border-slate-700">
-                {/* ICONE SKULL */}
                 <div className="text-6xl mb-4"><Icon name="skull" className="text-white" /></div>
                 <h2 className="text-3xl font-black mb-2">Terminé !</h2>
                 <div className="text-center bg-slate-900/50 p-4 rounded-xl mb-6">
@@ -258,12 +177,11 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
 
     if (!q) return <div className="text-white text-center mt-20">Chargement...</div>;
 
+    // --- VUE JEU ---
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
-            {/* On cache la croix si le feedback est affiché pour forcer la lecture */}
             {!feedback && (
                 <button onClick={() => onFinish(score)} className="absolute top-16 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center transition-colors z-40">
-                    {/* ICONE CROIX */}
                     <Icon name="x" className="text-xl" />
                 </button>
             )}
@@ -281,10 +199,11 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                         let btnClass = "p-4 rounded-xl font-bold transition-all text-lg border ";
 
                         if (feedback) {
-                            if (i === q.correctIndex) btnClass += "bg-emerald-600 border-emerald-500 text-white"; // La bonne réponse
-                            else btnClass += "bg-slate-700 border-slate-600 opacity-30"; // Les autres grisées
+                            // CORRECTION 3: Comparer le texte et pas l'index (car mixedAnswers est mélangé)
+                            if (a === q.correctTxt) btnClass += "bg-emerald-600 border-emerald-500 text-white";
+                            else if (i === i) btnClass += "bg-slate-700 border-slate-600 opacity-30"; // Les autres grisées
                         } else {
-                            btnClass += "bg-slate-700 hover:bg-indigo-500 border-slate-600 hover:border-white hover:scale-105"; // État normal
+                            btnClass += "bg-slate-700 hover:bg-indigo-500 border-slate-600 hover:border-white hover:scale-105";
                         }
 
                         return (
@@ -292,7 +211,7 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                                 key={i}
                                 onClick={() => handleAnswer(i)}
                                 className={btnClass}
-                                disabled={!!feedback} // Désactive le clic pendant le feedback
+                                disabled={!!feedback}
                             >
                                 {a}
                             </button>
@@ -300,18 +219,19 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                     })}
                 </div>
 
-                {/* Zone d'explication (Apparaît quand on perd) */}
+                {/* CORRECTION 4: Le feedback a maintenant un bouton pour passer à la suite */}
                 {feedback && (
-                    <div className={`mt-6 p-4 rounded-xl border font-bold pop-in animate-pulse ${feedback.type === 'CORRECT'
-                        ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100'
-                        : 'bg-red-900/50 border-red-500 text-red-100'
-                        }`}>
-                        <div className="text-xl mb-1 flex items-center justify-center gap-2">
-                            {/* Icône changeante */}
+                    <div className={`mt-6 p-4 rounded-xl border font-bold pop-in ${feedback.type === 'CORRECT' ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' : 'bg-red-900/50 border-red-500 text-red-100'}`}>
+                        <div className="text-xl mb-2 flex items-center justify-center gap-2">
                             <Icon name={feedback.type === 'CORRECT' ? "check-circle" : "warning-circle"} />
                             {feedback.type === 'CORRECT' ? "Excellent !" : "Oups !"}
                         </div>
-                        {feedback.msg}
+                        <div className="mb-4">{feedback.msg}</div>
+
+                        {/* C'est CE bouton qui manquait pour débloquer le jeu en cas d'erreur */}
+                        <button onClick={nextQ} className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 mx-auto">
+                            Continuer <Icon name="arrow-right" />
+                        </button>
                     </div>
                 )}
             </div>
