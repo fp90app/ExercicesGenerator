@@ -67,7 +67,7 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
 
     // --- GÉNÉRATION QUESTION (inchangé) ---
     const nextQ = async () => {
-        setFeedback(null); // On cache le feedback pour la nouvelle question
+        setFeedback(null);
         const currentModeConfig = modes[modeId];
         const currentLevel = currentModeConfig.level;
 
@@ -121,41 +121,62 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
 
     useEffect(() => { nextQ(); }, []);
 
-    // --- TIMER ---
+    // --- TIMER (MORT SUBITE) ---
     useEffect(() => {
-        if (gameOver || feedback) return; // Le timer pause si feedback affiché
-        const timer = setInterval(() => { setTimeLeft(t => { if (t <= 0) { clearInterval(timer); setGameOver(true); return 0; } return t - 0.1; }); }, 100);
+        // Le timer s'arrête si GameOver OU si on affiche le Feedback (victoire ou défaite)
+        if (gameOver || feedback) return;
+
+        const timer = setInterval(() => {
+            setTimeLeft(t => {
+                if (t <= 0) {
+                    clearInterval(timer);
+                    onSound('WRONG');
+                    setGameOver(true); // TEMPS ÉCOULÉ = PERDU DIRECTEMENT
+                    return 0;
+                }
+                return t - 0.1;
+            });
+        }, 100);
         return () => clearInterval(timer);
     }, [q, gameOver, feedback]);
 
 
-    // --- GESTION RÉPONSE (CORRIGÉE) ---
+    // --- GESTION RÉPONSE (MORT SUBITE) ---
     const handleAnswer = (idx) => {
-        // CORRECTION 1: 'finished' n'existe pas -> 'gameOver'
         if (feedback || gameOver) return;
 
         const clickedValue = q.mixedAnswers[idx];
         const isCorrect = clickedValue === q.correctTxt;
 
         if (isCorrect) {
+            // --- BONNE RÉPONSE ---
             setScore(s => s + 1);
             onSound('CORRECT');
             setFeedback({ type: 'CORRECT', msg: `Bravo ! ${q.e || ""}` });
 
-            // CORRECTION 2: 'nextQuestion' n'existe pas -> 'nextQ'
-            setTimeout(() => { nextQ(); }, 1000);
+            // On passe à la suite automatiquement (c'est fluide pour enchaîner les points)
+            setTimeout(() => { nextQ(); }, 800);
+
         } else {
+            // --- MAUVAISE RÉPONSE = GAME OVER ---
             onSound('WRONG');
+
             let errorMsg = q.e || "";
             if (q.detailedFeedback && q.detailedFeedback[clickedValue]) {
                 errorMsg = q.detailedFeedback[clickedValue];
             }
+
+            // 1. On montre l'erreur
             setFeedback({ type: 'WRONG', msg: `Oups... ${errorMsg}` });
-            // Ici on n'appelle pas nextQ() automatiquement, l'utilisateur devra cliquer sur "Continuer"
+
+            // 2. On attend un peu que l'élève lise, puis GAME OVER
+            setTimeout(() => {
+                setGameOver(true);
+            }, 5000); // 5 secondes pour voir la correction avant l'écran de fin
         }
     };
 
-    // --- VUE GAMEOVER (inchangée) ---
+    // --- VUE GAMEOVER ---
     if (gameOver) return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
             <div className="bg-indigo-800 p-8 rounded-3xl shadow-2xl text-center max-w-4xl w-full pop-in text-white border border-slate-700">
@@ -180,8 +201,10 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
     // --- VUE JEU ---
     return (
         <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
+
+            {/* Bouton croix pour quitter (optionnel) */}
             {!feedback && (
-                <button onClick={() => onFinish(score)} className="absolute top-16 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center transition-colors z-40">
+                <button onClick={() => setGameOver(true)} className="absolute top-16 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-red-500 flex items-center justify-center transition-colors z-40">
                     <Icon name="x" className="text-xl" />
                 </button>
             )}
@@ -199,9 +222,10 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                         let btnClass = "p-4 rounded-xl font-bold transition-all text-lg border ";
 
                         if (feedback) {
-                            // CORRECTION 3: Comparer le texte et pas l'index (car mixedAnswers est mélangé)
+                            // Si c'est la bonne réponse, en vert
                             if (a === q.correctTxt) btnClass += "bg-emerald-600 border-emerald-500 text-white";
-                            else if (i === i) btnClass += "bg-slate-700 border-slate-600 opacity-30"; // Les autres grisées
+                            // Si c'est la réponse cliquée et qu'elle est fausse, on pourrait la mettre en rouge, mais ici on grise les autres
+                            else btnClass += "bg-slate-700 border-slate-600 opacity-30";
                         } else {
                             btnClass += "bg-slate-700 hover:bg-indigo-500 border-slate-600 hover:border-white hover:scale-105";
                         }
@@ -219,19 +243,15 @@ const SurvivalGameLogic = ({ modeId, onFinish, onSound, user }) => {
                     })}
                 </div>
 
-                {/* CORRECTION 4: Le feedback a maintenant un bouton pour passer à la suite */}
+                {/* FEEDBACK UNIQUEMENT (Pas de bouton, ça passe tout seul) */}
                 {feedback && (
                     <div className={`mt-6 p-4 rounded-xl border font-bold pop-in ${feedback.type === 'CORRECT' ? 'bg-emerald-900/50 border-emerald-500 text-emerald-100' : 'bg-red-900/50 border-red-500 text-red-100'}`}>
                         <div className="text-xl mb-2 flex items-center justify-center gap-2">
                             <Icon name={feedback.type === 'CORRECT' ? "check-circle" : "warning-circle"} />
-                            {feedback.type === 'CORRECT' ? "Excellent !" : "Oups !"}
+                            {feedback.type === 'CORRECT' ? "Excellent !" : "Aïe... Perdu !"}
                         </div>
-                        <div className="mb-4">{feedback.msg}</div>
-
-                        {/* C'est CE bouton qui manquait pour débloquer le jeu en cas d'erreur */}
-                        <button onClick={nextQ} className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 mx-auto">
-                            Continuer <Icon name="arrow-right" />
-                        </button>
+                        <div className="mb-2">{feedback.msg}</div>
+                        {feedback.type === 'WRONG' && <div className="text-xs text-red-200 animate-pulse">Fin de partie imminente...</div>}
                     </div>
                 )}
             </div>
