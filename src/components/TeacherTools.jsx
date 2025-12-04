@@ -311,8 +311,16 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
 
 
 const getLevelColor = (count) => {
-    if (count >= 3) return "bg-emerald-500 text-white border-emerald-600";
-    if (count >= 1) return "bg-emerald-200 text-emerald-800 border-emerald-300";
+    // 3 réussites : Terminé (Vert foncé + Blanc + Ombre)
+    if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
+
+    // 2 réussites : Avancé (Vert moyen)
+    if (count === 2) return "bg-emerald-300 text-emerald-900 border-emerald-400";
+
+    // 1 réussite : Débuté (Vert très clair)
+    if (count === 1) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+    // 0 réussite : Pas fait (Gris)
     return "bg-slate-100 text-slate-300 border-slate-200";
 };
 
@@ -440,7 +448,8 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                                                                 const count = progress[lvl] || 0;
                                                                 return (
                                                                     <div key={lvl} className={`w-5 h-5 rounded border flex items-center justify-center text-[9px] font-bold ${getLevelColor(count)}`}>
-                                                                        {count >= 3 ? <Icon name="check" /> : lvl}
+                                                                        {/* MODIFICATION ICI : On stylise un peu mieux l'icône check */}
+                                                                        {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
                                                                     </div>
                                                                 )
                                                             })}

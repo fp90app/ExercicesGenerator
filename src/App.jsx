@@ -12,6 +12,7 @@ import SurvivalGameLogic from './components/games/SurvivalGame';
 
 // --- IMPORTS DES EXERCICES SPÉCIFIQUES ---
 import ExerciceLectureGraphique from './components/ExerciceLectureGraphique.jsx';
+import ExerciceTableauValeursCourbe from './components/games/ExerciceTableauValeursCourbe.jsx';
 import ExerciceThales from './components/games/ExerciceThales';
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
   };
 
   const handleFinish = async (score) => {
+
     // On attend le résultat de la sauvegarde
     const result = await saveProgress(gameConfig.mode, gameConfig.id, gameConfig.level, score);
 
@@ -134,40 +136,53 @@ export default function App() {
         {view === 'GAME' && (
           // --- ROUTEUR DES EXERCICES ---
 
-          // 1. Lecture Graphique
-          // Note : Assure-toi que l'ID ici correspond bien à celui envoyé par le dashboard ('auto_37_graph' ou 'auto_37_fonctions')
-          gameConfig?.id === 'auto_37_graph' ? (
-            <ExerciceLectureGraphique
-              key={`graph-${gameConfig.level}`} // Force la remise à zéro si on change de niveau
+          // 26. Thalès
+          gameConfig?.id === 'auto_26_thales' ? (
+            <ExerciceThales
+              key={`thales-${gameConfig.level}`}  // Force la remise à zéro complète quand le niveau change
+              level={gameConfig.level}            // Donne le niveau pour l'initialisation
               user={user}
-              level={gameConfig.level}          // <--- TRANSMISSION DU NIVEAU AJOUTÉE ICI
               onFinish={handleFinish}
               onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
               onSound={triggerSound}
             />
           ) :
-            // 2. Thalès
-            gameConfig?.id === 'auto_26_thales' ? (
-              <ExerciceThales
-                key={`thales-${gameConfig.level}`}  // Force la remise à zéro complète quand le niveau change
-                level={gameConfig.level}            // Donne le niveau pour l'initialisation
+            // 37. Lecture Graphique
+
+            gameConfig?.id === 'auto_37_graph' ? (
+              <ExerciceLectureGraphique
+                key={`graph-${gameConfig.level}`} // Force la remise à zéro si on change de niveau
                 user={user}
+                level={gameConfig.level}          // <--- TRANSMISSION DU NIVEAU AJOUTÉE ICI
                 onFinish={handleFinish}
                 onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                 onSound={triggerSound}
               />
             ) :
-              // 3. Jeu Standard (Calcul mental, tables, etc.)
-              (
-                <Game
+              // 38. Lecture Graphique 2
+
+              gameConfig?.id === 'auto_38_graph2' ? (
+                <ExerciceTableauValeursCourbe
+                  key={`graph-${gameConfig.level}`} // Force la remise à zéro si on change de niveau
                   user={user}
-                  config={gameConfig}
-                  level={gameConfig.level}
+                  level={gameConfig.level}          // <--- TRANSMISSION DU NIVEAU AJOUTÉE ICI
                   onFinish={handleFinish}
-                  onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                  onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                   onSound={triggerSound}
                 />
-              )
+              ) :
+
+                // 3. Jeu Standard (Calcul mental, tables, etc.)
+                (
+                  <Game
+                    user={user}
+                    config={gameConfig}
+                    level={gameConfig.level}
+                    onFinish={handleFinish}
+                    onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                    onSound={triggerSound}
+                  />
+                )
         )}
 
         {view === 'SURVIVAL_GAME' && (

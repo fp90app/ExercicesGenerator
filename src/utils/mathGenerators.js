@@ -1066,12 +1066,186 @@ export const generateSquareQuestion = (config) => {
 
 };
 
-// --- AUTO 37 - LECTURE GRAPHIQUE ---
+
+
+
 // src/utils/mathGenerators.js
 
-// --- src/utils/mathGenerators.js ---
+export const generateDivisibilityQuestion = (config) => {
+    const lvl = config.level || 1;
+    // Outils internes
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const sumDigits = (n) => String(n).split('').reduce((a, b) => a + Number(b), 0);
 
-// --- src/utils/mathGenerators.js ---
+    let q, correct, e, o = [];
+    let mode;
+
+    // =================================================================
+    // NIVEAU 1 : Règles de base (2, 5, 10) -> Le dernier chiffre
+    // =================================================================
+    if (lvl === 1) {
+        mode = pick(["check_2", "check_5", "check_10", "find_multiple"]);
+        const base = rand(10, 999);
+
+        if (mode === "check_2") {
+            q = `${base} est-il divisible par 2 ?`;
+            const isEven = base % 2 === 0;
+            correct = isEven ? "Oui" : "Non";
+            e = `Regarde le dernier chiffre (${String(base).slice(-1)}). ${isEven ? "C'est pair (0,2,4,6,8)." : "Ce n'est pas pair."}`;
+            o = ["Oui", "Non"];
+        }
+        else if (mode === "check_5") {
+            q = `${base} est-il divisible par 5 ?`;
+            const ends5or0 = base % 5 === 0;
+            correct = ends5or0 ? "Oui" : "Non";
+            e = `Pour être divisible par 5, le nombre doit finir par 0 ou 5. Ici il finit par ${String(base).slice(-1)}.`;
+            o = ["Oui", "Non"];
+        }
+        else if (mode === "check_10") {
+            q = `${base} est-il divisible par 10 ?`;
+            const ends0 = base % 10 === 0;
+            correct = ends0 ? "Oui" : "Non";
+            e = `Pour être divisible par 10, le nombre doit finir par 0. Ici il finit par ${String(base).slice(-1)}.`;
+            o = ["Oui", "Non"];
+        }
+        else {
+            // Mode inverse : "Lequel est divisible par X ?"
+            const div = pick([2, 5, 10]);
+            q = `Lequel de ces nombres est divisible par ${div} ?`;
+
+            // Générer la bonne réponse
+            let good = rand(10, 100) * div;
+
+            // Générer 3 pièges (nombre aléatoire qui n'est PAS divisible par div)
+            const makeBad = () => {
+                let n = rand(10, 900);
+                // Si par malchance on tombe sur un multiple, on ajoute 1 pour le casser
+                if (n % div === 0) n += 1;
+                return n;
+            };
+
+            correct = String(good);
+            o = [correct, String(makeBad()), String(makeBad()), String(makeBad())];
+
+            if (div === 2) e = `La bonne réponse est le nombre nombre pair (c'est à dire qui finit par 0 ; 2 ; 4 ; 6 ou 8).`;
+            if (div === 5) e = `Un nombre entier est divisible par 5 si et seulement si il finit par 0 ou 5.`;
+            if (div === 10) e = `Un nombre entier est divisible par 10 si et seulement si il finit par 0.`;
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 2 : Règles calculées (3, 9) et règle de 4
+    // =================================================================
+    else if (lvl === 2) {
+        mode = pick(["rule_3", "rule_9", "rule_4"]);
+
+        if (mode === "rule_3") {
+            const n = rand(100, 999);
+            q = `${n} est-il divisible par 3 ?`;
+            const s = sumDigits(n);
+            const isDiv = s % 3 === 0;
+            correct = isDiv ? "Oui" : "Non";
+            e = `Additionne les chiffres : ${String(n).split('').join('+')} = ${s}. ${isDiv ? "C'est" : "Ce n'est pas"} dans la table de 3.`;
+            o = ["Oui", "Non"];
+        }
+        else if (mode === "rule_9") {
+            const n = rand(100, 9999); // Nombres plus grands
+            q = `${n} est-il divisible par 9 ?`;
+            const s = sumDigits(n);
+            const isDiv = s % 9 === 0;
+            correct = isDiv ? "Oui" : "Non";
+            e = `Additionne les chiffres : somme = ${s}. ${isDiv ? "Le résultat est dans la table de 9 donc c'est un multiple de 9." : "Le résultat n'est pas dans la table de 9 donc ce n'est pas un multiple de 9."}`;
+            o = ["Oui", "Non"];
+        }
+        else { // Règle de 4
+            // On piège avec des nombres impairs ou des nombres pairs non divisibles par 4 (ex: 14)
+            const head = rand(1, 99);
+            const tail = rand(10, 99);
+            const n = parseInt(`${head}${tail}`); // ex: 1324
+
+            q = `${n} est-il divisible par 4 ?`;
+            const isDiv = tail % 4 === 0;
+            correct = isDiv ? "Oui" : "Non";
+            e = `Un nombre entier est dans la table de 4 si et seulement si ses deux derniers chiffres sont dans la table de 4. Les deux derniers chiffres sont (${tail}). ${tail} ${isDiv ? "est" : "n'est pas"} dans la table de 4.`;
+            o = ["Oui", "Non"];
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 3 : Logique, Chiffres manquants, Règles combinées (6)
+    // =================================================================
+    else {
+        mode = pick(["missing_digit", "logic_statements", "combined_6"]);
+
+        if (mode === "missing_digit") {
+            // Ex: Par quel chiffre remplacer ? pour que 15? soit divisible par 9
+            const div = pick([3, 9]);
+            const head = rand(1, 9);
+            const mid = rand(0, 9);
+
+            // On cherche le chiffre manquant "target"
+            const currentSum = head + mid;
+            let target = 0;
+            while ((currentSum + target) % div !== 0) {
+                target++;
+            }
+
+            q = `Par quel chiffre remplacer le ? pour que ${head}${mid}? soit divisible par ${div} ?`;
+            correct = String(target);
+
+            // Pièges : target+1, target-1, etc.
+            o = [correct, String((target + 1) % 10), String((target + 2) % 10), String((target + 4) % 10)];
+
+            e = `La somme des chiffres doit être un multiple de ${div}. ${head}+${mid}+${target} = ${head + mid + target}.`;
+        }
+        else if (mode === "combined_6") {
+            // Divisible par 6 si divisible par 2 ET 3
+            const makeNum = (mod2, mod3) => {
+                let n = rand(100, 500);
+                while ((n % 2 === 0) !== mod2 || (n % 3 === 0) !== mod3) {
+                    n++;
+                }
+                return n;
+            };
+
+            const good = makeNum(true, true);
+            const bad2 = makeNum(true, false); // Pair mais pas 3
+            const bad3 = makeNum(false, true); // Impair mais 3
+            const badNone = makeNum(false, false);
+
+            q = "Lequel de ces nombres est divisible par 6 ?";
+            correct = String(good);
+            o = [String(good), String(bad2), String(bad3), String(badNone)];
+            e = `Pour être divisible par 6, il faut être pair ET divisible par 3 car 6=2×3.`;
+        }
+        else {
+            // Vrai ou Faux logique
+            const statements = [
+                { s: "Tout nombre divisible par 10 est divisible par 5.", ans: "Vrai", expl: "10 est un multiple de 5 donc un multiple de 10 s'écrit 10x un nombre entier = 5×2× un nombre entier donc c'est aussi un multiple de 5." },
+                { s: "Tout nombre divisible par 5 est divisible par 10.", ans: "Faux", expl: "Contre-exemple : 15 (finit par 5)." },
+                { s: "Tout nombre divisible par 9 est divisible par 3.", ans: "Vrai", expl: "9 est un multiple de 3 donc un multiple de 9 s'écrit 9×un nombre entier = 3×3×un nombre entier donc c'est aussi un multiple de 3." },
+                { s: "Tout nombre divisible par 3 est divisible par 9.", ans: "Faux", expl: "Contre-exemple : 6." },
+                { s: "Si un nombre finit par 4, il est divisible par 4.", ans: "Faux", expl: "Contre-exemple : 14." }
+            ];
+            const item = pick(statements);
+            q = `Vrai ou Faux : ${item.s}`;
+            correct = item.ans;
+            o = ["Vrai", "Faux"];
+            e = item.expl;
+        }
+    }
+
+    // --- CORRECTION CRITIQUE : FORCER LA BONNE RÉPONSE EN PREMIER ---
+    // 1. On nettoie les doublons éventuels
+    const uniqueO = [...new Set(o)];
+
+    // 2. On reconstruit le tableau : [BONNE_RÉPONSE, ...MAUVAISES_RÉPONSES]
+    // Le moteur de jeu s'attend à ce que l'index 0 soit la bonne réponse avant de mélanger
+    const finalO = [correct, ...uniqueO.filter(x => x !== correct)];
+
+    return { q, o: finalO, c: 0, e };
+};
 
 // Utilitaire pour un entier aléatoire entre min et max (inclus)
 const randint = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -1210,37 +1384,648 @@ export const generateGraphQuestion = ({ level }) => {
     }
 };
 
+// --- AUTO 38 - FONCTIONS - TABLEAU <-> GRAPHIQUE ---
+// Fonction utilitaire pour générer une séquence linéaire d'opérations
+// src/utils/mathGenerators.js
+// src/utils/mathGenerators.js
+
+export const generateTableQuestion = (config) => {
+    // 1. Extraction sécurisée du niveau
+    // Si on reçoit un nombre par erreur, on gère le cas, sinon on prend l'objet
+    const lvl = (typeof config === 'number') ? config : (config.level || 1);
+
+    // --- OUTILS ---
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    // Arrondi propre pour éviter 3.0000004
+    const clean = (n) => Math.round(n * 100) / 100;
+
+    // Mode : Lecture (remplir tableau) ou Tracé (placer points)
+    // Au niveau 3, on fait plus souvent de la lecture (calcul inverse plus dur)
+    const mode = Math.random() > (lvl === 3 ? 0.3 : 0.4) ? 'READ_TABLE' : 'PLOT_GRAPH';
+
+    let f, fStr, points = [];
+
+    // --- GÉNÉRATION DES FONCTIONS PAR NIVEAU ---
+
+    if (lvl === 1) {
+        // === NIVEAU 1 : Fonctions Affines Simples (Entiers) ===
+        // f(x) = ax + b
+        const a = choice([-2, -1, 1, 2]);
+        const b = rand(-3, 3);
+        f = (x) => a * x + b;
+
+        const aStr = a === 1 ? '' : (a === -1 ? '-' : a);
+        const bStr = b === 0 ? '' : (b > 0 ? `+ ${b}` : `- ${Math.abs(b)}`);
+        fStr = `f(x) = ${aStr}x ${bStr}`;
+
+        // Points entiers simples
+        [-3, -2, -1, 0, 1, 2, 3].forEach(x => {
+            const y = f(x);
+            if (Math.abs(y) <= 6) points.push({ x, y: clean(y) });
+        });
+
+    } else if (lvl === 2) {
+        // === NIVEAU 2 : Mélange Affines à virgule & Paraboles simples ===
+        const type = Math.random() > 0.5 ? 'affine_dec' : 'parabole_simple';
+
+        if (type === 'affine_dec') {
+            // f(x) = 0.5x + b ou -1.5x ...
+            const a = choice([0.5, -0.5, 1.5, -1.5]);
+            const b = rand(-2, 2);
+            f = (x) => a * x + b;
+            fStr = `f(x) = ${a.toString().replace('.', ',')}x ${b >= 0 ? '+' : '-'} ${Math.abs(b)}`;
+        } else {
+            // f(x) = ax² + c (Symétrique par rapport à l'axe Y)
+            const a = choice([-1, 1]); // Pas de coeff devant x² pour l'instant
+            const c = rand(-4, 3);
+            f = (x) => a * x * x + c;
+            const aStr = a === 1 ? '' : '-';
+            fStr = `f(x) = ${aStr}x² ${c === 0 ? '' : (c > 0 ? `+ ${c}` : c)}`;
+        }
+
+        // On scanne pour trouver des points qui tombent "juste" (entiers ou .5)
+        for (let x = -5; x <= 5; x += 1) {
+            const y = f(x);
+            if (Math.abs(y) <= 6.5) points.push({ x, y: clean(y) });
+        }
+
+    } else {
+        // === NIVEAU 3 : Paraboles décalées & Fonctions complexes ===
+        // Forme canonique : a(x-alpha)² + beta
+        // Cela crée des paraboles dont le sommet n'est pas sur l'axe Y -> Plus dur à lire
+        const a = choice([0.5, -0.5, 1, -1]);
+        const alpha = choice([-2, -1, 1, 2]); // Décalage horizontal
+        const beta = rand(-3, 2); // Décalage vertical
+
+        f = (x) => a * Math.pow(x - alpha, 2) + beta;
+
+        // Construction string jolie
+        const aPart = Math.abs(a) === 1 ? (a < 0 ? '-' : '') : a.toString().replace('.', ',');
+        const signAlpha = alpha < 0 ? '+' : '-';
+        fStr = `f(x) = ${aPart}(x ${signAlpha} ${Math.abs(alpha)})² ${beta >= 0 ? '+' : '-'} ${Math.abs(beta)}`;
+
+        // Scan large
+        for (let x = -6; x <= 6; x++) {
+            const y = f(x);
+            // On accepte les .5 pour le graphe
+            if (Math.abs(y) <= 6.5 && (y * 2) % 1 === 0) {
+                points.push({ x, y: clean(y) });
+            }
+        }
+    }
+
+    // --- SÉLECTION DES POINTS ---
+    // On mélange et on en prend 3 (niv 1) ou 4/5 (niv 2/3)
+    const nbPoints = lvl === 1 ? 3 : 5;
+    points = points.sort(() => Math.random() - 0.5).slice(0, nbPoints).sort((a, b) => a.x - b.x);
+
+    // --- CRÉATION DES TROUS (HOLES) ---
+    const tableData = points.map(p => {
+        if (mode === 'PLOT_GRAPH') {
+            // Si on doit tracer, on donne tout
+            return { ...p, typeX: 'given', typeY: 'given' };
+        } else {
+            // Si on doit remplir le tableau (Lecture Graphique)
+
+            // Niv 1 : On donne X, trouver Y (Image) -> Facile
+            // Niv 2 : Parfois on donne Y, trouver X (Antécédent)
+            // Niv 3 : Souvent trouver X
+
+            let hideX = false;
+            if (lvl === 2) hideX = Math.random() > 0.7; // 30% de chance de chercher X
+            if (lvl === 3) hideX = Math.random() > 0.5; // 50% de chance
+
+            // Attention : chercher X n'est possible que si la fonction est injective sur ce point
+            // ou si l'élève peut deviner visuellement. Pour une parabole, il peut y avoir 2 x pour un y.
+            // Pour simplifier l'exercice et éviter la confusion, si c'est une parabole (lvl > 1),
+            // on évite de demander X sauf si c'est le sommet, sinon c'est trop dur à remplir dans une seule case input.
+            // On va rester simple : Principalement cacher Y, mais cacher X sur les droites.
+
+            if (hideX && lvl === 2 && fStr.includes('x²')) hideX = false; // Sécurité pour parabole niv 2
+
+            if (hideX) {
+                return { ...p, typeX: 'hole', typeY: 'given' };
+            } else {
+                return { ...p, typeX: 'given', typeY: 'hole' };
+            }
+        }
+    });
+
+    return {
+        mode,
+        f,
+        fStr,
+        table: tableData,
+        q: mode === 'READ_TABLE'
+            ? (lvl === 1 ? "Complète le tableau grâce au graphique." : "Trouve les valeurs manquantes en lisant le graphique.")
+            : "Place les points indiqués dans le tableau sur le graphique.",
+    };
+};
+
+
+// --- AUTO 39 - ALGORITHMIQUE (SCRATCH) ---
+// Fonction utilitaire pour générer une séquence linéaire d'opérations
+// src/utils/mathGenerators.js
+
+// --- UTILITAIRES ---
+const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// Dictionnaire des orientations
+const DIRECTIONS = {
+    "90": { name: "à droite", axis: "x", sign: 1 },
+    "-90": { name: "à gauche", axis: "x", sign: -1 },
+    "0": { name: "vers le haut", axis: "y", sign: 1 },
+    "180": { name: "vers le bas", axis: "y", sign: -1 }
+};
+
+// -------------------------------------------------------------------------
+// GÉNÉRATEUR 1 : Séquences de Calcul (Mode Enrichi & Varié)
+// -------------------------------------------------------------------------
+const generateCalcSequence = (difficulty) => {
+    // difficulty: 1 (Simple), 2 (Relatifs + Carrés/Doubles), 3 (Complexes n²+n)
+
+    const allowNeg = difficulty > 1;
+    const useLoop = difficulty !== 3 && Math.random() > 0.6;
+
+    const vName = pick(["x", "n", "R", "score", "total", "A"]);
+
+    let startMax = difficulty === 3 ? 5 : 10;
+    let currentVal = rand(1, startMax);
+    if (allowNeg && Math.random() > 0.5) currentVal = -currentVal;
+
+    let blocks = [
+        { type: "event", isHat: true, text: "quand 🏁 est cliqué" },
+        { type: "var", text: `mettre ${vName} à ${currentVal}`, highlight: vName }
+    ];
+
+    let explanation = [`1️⃣ Départ : ${vName} = ${currentVal}.`];
+
+    // --- CAS A : BOUCLE SIMPLE (Niv 1 & 2) ---
+    if (useLoop) {
+        const tours = rand(3, 5);
+        const isComplexLoop = difficulty > 1 && Math.random() > 0.5;
+
+        let valAjout, textOp, calcExplication;
+
+        if (isComplexLoop) {
+            const base = rand(2, 4);
+            const mult = rand(2, 3);
+            valAjout = base * mult;
+            textOp = `ajouter ${base} * ${mult} à ${vName}`;
+            calcExplication = `ajouter le ${mult === 2 ? 'double' : 'triple'} de ${base} (${valAjout})`;
+        } else {
+            valAjout = rand(2, 5) * (allowNeg && Math.random() > 0.5 ? -1 : 1);
+            textOp = `ajouter ${valAjout} à ${vName}`;
+            calcExplication = `ajouter ${valAjout}`;
+        }
+
+        blocks.push({ type: "control", text: `répéter ${tours} fois` });
+        blocks.push({ type: "var", text: textOp, indent: 1, highlight: vName });
+
+        const totalAjout = tours * valAjout;
+        const oldVal = currentVal;
+        currentVal += totalAjout;
+
+        explanation.push(`2️⃣ On répète ${tours} fois "${calcExplication}".`);
+        explanation.push(`   Cela revient à ajouter ${tours} × ${valAjout} = ${totalAjout}.`);
+        explanation.push(`3️⃣ Calcul : ${oldVal} + (${totalAjout}) = ${currentVal}.`);
+    }
+    // --- CAS B : SÉQUENCE LINÉAIRE VARIÉE (Niv 1, 2, 3) ---
+    else {
+        const steps = difficulty === 1 ? 3 : (difficulty === 2 ? 3 : 2);
+
+        for (let i = 0; i < steps; i++) {
+            let opType = "standard";
+            const r = Math.random();
+
+            if (difficulty === 2) {
+                if (r < 0.3) opType = "special_simple";
+            } else if (difficulty === 3) {
+                if (r < 0.4) opType = "special_simple";
+                else if (r < 0.7) opType = "special_complex";
+            }
+
+            // TYPE 1 : OPÉRATIONS CLASSIQUES (+ - *)
+            if (opType === "standard") {
+                const subType = pick(["add", "sub", "mult"]);
+                let val = rand(2, 5);
+
+                if (subType === "mult") {
+                    currentVal *= val;
+                    blocks.push({ type: "var", text: `mettre ${vName} à ${vName} * ${val}`, highlight: vName });
+                    explanation.push(`➡️ On multiplie par ${val} : ${currentVal / val} × ${val} = ${currentVal}.`);
+                } else if (subType === "add") {
+                    currentVal += val;
+                    blocks.push({ type: "var", text: `ajouter ${val} à ${vName}`, highlight: vName });
+                    explanation.push(`➡️ On ajoute ${val} : résultat ${currentVal}.`);
+                } else {
+                    currentVal -= val;
+                    blocks.push({ type: "var", text: `ajouter -${val} à ${vName}`, highlight: vName });
+                    explanation.push(`➡️ On soustrait ${val} : résultat ${currentVal}.`);
+                }
+            }
+
+            // TYPE 2 : FONCTIONS SPÉCIALES SIMPLES (Carré, Double, Triple)
+            else if (opType === "special_simple") {
+                const func = pick(["carre", "double", "triple", "add_multiple"]);
+
+                if (func === "carre" && Math.abs(currentVal) <= 12) {
+                    const old = currentVal;
+                    currentVal = currentVal * currentVal;
+
+                    // --- VARIATION DU TEXTE POUR LE CARRÉ ---
+                    const carreOptions = [
+                        `${vName} * ${vName}`,
+                        `${vName}²`,
+                        `${vName} au carré`,
+                        `carré de ${vName}`
+                    ];
+                    const txtCarre = pick(carreOptions);
+
+                    blocks.push({ type: "var", text: `mettre ${vName} à ${txtCarre}`, highlight: vName });
+                    explanation.push(`➡️ On met au carré (${old}²) : ${old} × ${old} = ${currentVal}.`);
+                }
+                else if (func === "double") {
+                    currentVal *= 2;
+                    blocks.push({ type: "var", text: `mettre ${vName} à ${vName} * 2`, highlight: vName });
+                    explanation.push(`➡️ On prend le double : résultat ${currentVal}.`);
+                }
+                else if (func === "triple") {
+                    currentVal *= 3;
+                    blocks.push({ type: "var", text: `mettre ${vName} à ${vName} * 3`, highlight: vName });
+                    explanation.push(`➡️ On prend le triple : résultat ${currentVal}.`);
+                }
+                else {
+                    const base = rand(2, 5);
+                    const mult = rand(2, 3);
+                    const toAdd = base * mult;
+                    currentVal += toAdd;
+                    const vocab = mult === 2 ? "double" : "triple";
+                    blocks.push({ type: "var", text: `ajouter (${base} * ${mult}) à ${vName}`, highlight: vName });
+                    explanation.push(`➡️ On ajoute le ${vocab} de ${base} (${toAdd}) : résultat ${currentVal}.`);
+                }
+            }
+
+            // TYPE 3 : FONCTIONS EXPERTES (Niveau 3)
+            else if (opType === "special_complex") {
+                const func = pick(["sq_plus_n", "sq_minus_k"]);
+
+                if (Math.abs(currentVal) > 10) {
+                    currentVal -= 5;
+                    blocks.push({ type: "var", text: `ajouter -5 à ${vName}`, highlight: vName });
+                    explanation.push(`➡️ On soustrait 5 : résultat ${currentVal}.`);
+                }
+                else if (func === "sq_plus_n") {
+                    const old = currentVal;
+                    currentVal = (old * old) + old;
+
+                    const txtPart = pick([`${vName} * ${vName}`, `${vName}²`]);
+                    blocks.push({ type: "var", text: `mettre ${vName} à (${txtPart}) + ${vName}`, highlight: vName });
+                    explanation.push(`➡️ Calcul complexe (${vName}² + ${vName}) : ${old}² + ${old} = ${currentVal}.`);
+                }
+                else {
+                    const k = rand(1, 5);
+                    const old = currentVal;
+                    currentVal = (old * old) - k;
+
+                    const txtPart = pick([`${vName} * ${vName}`, `${vName}²`]);
+                    blocks.push({ type: "var", text: `mettre ${vName} à (${txtPart}) - ${k}`, highlight: vName });
+                    explanation.push(`➡️ Calcul (${vName}² - ${k}) : ${old}² - ${k} = ${currentVal}.`);
+                }
+            }
+        }
+    }
+
+    blocks.push({ type: "looks", text: `dire ${vName}`, highlight: vName });
+
+    // --- GÉNÉRATION INTELLIGENTE DES RÉPONSES (4 Choix garantis) ---
+    const wrongSet = new Set();
+    const correctVal = currentVal;
+
+    // 1. Pièges spécifiques (Signe, Confusion Double/Carré)
+    wrongSet.add(String(-correctVal)); // Erreur de signe (Classique carré)
+    wrongSet.add(String(correctVal * 2)); // Erreur Double vs Carré
+    wrongSet.add(String(Math.floor(correctVal / 2))); // Erreur moitié
+    wrongSet.add(String(correctVal + 10)); // Erreur de calcul dizaine
+    wrongSet.add(String(correctVal - 10));
+    wrongSet.add(String(correctVal + 1)); // Erreur de calcul unité
+    wrongSet.add(String(correctVal - 1));
+
+    // Nettoyage : On enlève la bonne réponse si elle a été générée par un piège
+    if (wrongSet.has(String(correctVal))) wrongSet.delete(String(correctVal));
+
+    // Conversion en tableau
+    let wrongOptions = Array.from(wrongSet);
+
+    // Mélange des pièges intelligents
+    wrongOptions = wrongOptions.sort(() => 0.5 - Math.random());
+
+    // On garde les 3 premiers pièges max
+    let finalWrong = wrongOptions.slice(0, 3);
+
+    // Si on n'a pas assez de réponses (ex: résultat est 0, donc -0 est pareil), on complète
+    while (finalWrong.length < 3) {
+        let fake = correctVal + rand(-5, 5);
+        if (fake === correctVal) fake = correctVal + 10;
+
+        if (!finalWrong.includes(String(fake))) {
+            finalWrong.push(String(fake));
+        }
+    }
+
+    return {
+        blocks,
+        q: "Quel nombre va dire le lutin à la fin ?",
+        correct: String(correctVal),
+        e: explanation.join("\n"),
+        wrong: finalWrong, // Toujours 3 mauvaises réponses uniques
+        showAxes: false
+    };
+};
+
+// -------------------------------------------------------------------------
+// GÉNÉRATEUR 2 : Déplacements et Orientation (inchangé sauf sécurité 4 rép)
+// -------------------------------------------------------------------------
+const generateMovementSequence = (difficulty) => {
+    const startX = 0;
+    const startY = 0;
+    let currX = startX;
+    let currY = startY;
+
+    const possibleDirs = (difficulty === 1)
+        ? ["90", "-90"]
+        : ["90", "-90", "0", "180"];
+
+    let dir = pick(possibleDirs);
+    const dirInfo = DIRECTIONS[dir];
+
+    let blocks = [
+        { type: "event", isHat: true, text: "quand 🏁 est cliqué" },
+        { type: "motion", text: `aller à x: ${startX} y: ${startY}` },
+        { type: "motion", text: `s'orienter à ${dir}°` }
+    ];
+
+    let explanation = [`1️⃣ Départ à (0,0). On regarde ${dirInfo.name} (${dir}°).`];
+
+    const useLoop = difficulty > 1 && Math.random() > 0.5;
+
+    if (useLoop) {
+        const tours = rand(3, 5);
+        const pas = rand(10, 20);
+
+        blocks.push({ type: "control", text: `répéter ${tours} fois` });
+        blocks.push({ type: "motion", text: `avancer de ${pas}`, indent: 1 });
+
+        if (dirInfo.axis === "x") currX += (pas * tours * dirInfo.sign);
+        else currY += (pas * tours * dirInfo.sign);
+
+        explanation.push(`2️⃣ On avance de ${pas}, ${tours} fois, ${dirInfo.name}.`);
+        explanation.push(`   Déplacement total : ${tours} × ${pas} = ${tours * pas} pixels.`);
+    } else {
+        const steps = difficulty === 1 ? 2 : 3;
+        for (let i = 0; i < steps; i++) {
+            if (difficulty > 1 && Math.random() > 0.3) {
+                dir = pick(possibleDirs);
+                blocks.push({ type: "motion", text: `s'orienter à ${dir}°` });
+                explanation.push(`➡️ On tourne pour regarder ${DIRECTIONS[dir].name}.`);
+            }
+
+            const pas = rand(10, 30);
+            blocks.push({ type: "motion", text: `avancer de ${pas}` });
+
+            if (DIRECTIONS[dir].axis === "x") currX += (pas * DIRECTIONS[dir].sign);
+            else currY += (pas * DIRECTIONS[dir].sign);
+
+            explanation.push(`➡️ On avance de ${pas} ${DIRECTIONS[dir].name}.`);
+        }
+    }
+
+    const question = `Quelles seront les coordonnées (x; y) à la fin ?`;
+    const rappel = `(Rappel : s'orienter à ${dir}° signifie regarder ${DIRECTIONS[dir].name})`;
+
+    explanation.push(`📍 Position finale : x=${currX}, y=${currY}.`);
+
+    const correctRep = `(${currX}; ${currY})`;
+
+    // Génération pièges intelligents (Inversions classiques)
+    let traps = [
+        `(${currY}; ${currX})`,             // Inversion X/Y
+        `(${-currX}; ${currY})`,            // Erreur signe X
+        `(${currX}; ${-currY})`,            // Erreur signe Y
+        `(${-currY}; ${-currX})`,           // Tout inversé
+        `(${currX + 10}; ${currY})`,        // Erreur calcul
+        `(${currX}; ${currY + 10})`
+    ];
+
+    // Nettoyage doublons
+    let uniqueTraps = [...new Set(traps)].filter(t => t !== correctRep);
+
+    // Remplissage forcé à 3 mauvaises réponses si besoin
+    while (uniqueTraps.length < 3) {
+        // Génération de fausses coordonnées aléatoires
+        const fakeX = currX + rand(-20, 20);
+        const fakeY = currY + rand(-20, 20);
+        const fakeRep = `(${fakeX}; ${fakeY})`;
+        if (fakeRep !== correctRep && !uniqueTraps.includes(fakeRep)) {
+            uniqueTraps.push(fakeRep);
+        }
+    }
+
+    return {
+        blocks,
+        q: question,
+        correct: correctRep,
+        e: `${rappel}\n` + explanation.join("\n"),
+        wrong: uniqueTraps.slice(0, 3),
+        showAxes: true
+    };
+};
+
+// -------------------------------------------------------------------------
+// GÉNÉRATEUR 3 : Boucles Imbriquées (Garantie 4 rép)
+// -------------------------------------------------------------------------
+const generateNestedLoop = () => {
+    const vName = "compteur";
+    let total = 0;
+    const loop1 = rand(2, 4);
+    const loop2 = rand(2, 3);
+    const valAjout = rand(1, 3);
+
+    const blocks = [
+        { type: "event", isHat: true, text: "quand 🏁 est cliqué" },
+        { type: "var", text: `mettre ${vName} à 0`, highlight: vName },
+        { type: "control", text: `répéter ${loop1} fois` },
+        { type: "control", text: `répéter ${loop2} fois`, indent: 1 },
+        { type: "var", text: `ajouter ${valAjout} à ${vName}`, indent: 2, highlight: vName },
+        { type: "looks", text: `dire ${vName}`, highlight: vName }
+    ];
+
+    total = loop1 * loop2 * valAjout;
+    const explanation = `C'est une boucle imbriquée.\nCalcul : ${loop1} × ${loop2} × ${valAjout} = ${total}.`;
+
+    // Anti-doublon et remplissage
+    const wrongSet = new Set();
+
+    // Pièges logiques
+    wrongSet.add(String(loop1 * valAjout + loop2)); // Addition
+    wrongSet.add(String((loop1 + loop2) * valAjout)); // Somme des boucles
+    wrongSet.add(String(total - valAjout)); // Une étape en moins
+    wrongSet.add(String(total + valAjout)); // Une étape en trop
+    wrongSet.add(String(loop1 * loop2)); // Juste le nombre de tours
+
+    if (wrongSet.has(String(total))) wrongSet.delete(String(total));
+
+    // Conversion en tableau et remplissage si < 3
+    let wrongArr = Array.from(wrongSet);
+    while (wrongArr.length < 3) {
+        let fake = total + rand(-5, 5);
+        if (fake !== total && !wrongArr.includes(String(fake))) {
+            wrongArr.push(String(fake));
+        }
+    }
+
+    return {
+        blocks,
+        q: "Que va dire le lutin à la fin ?",
+        correct: String(total),
+        e: explanation,
+        wrong: wrongArr.slice(0, 3), // Exactement 3 mauvaises
+        showAxes: false
+    };
+};
+
+// -------------------------------------------------------------------------
+// GÉNÉRATEUR 4 : Conditions (Explications améliorées)
+// -------------------------------------------------------------------------
+const generateConditional = (difficulty) => {
+    const seuil = rand(10, 50);
+    const testVal = seuil + (Math.random() > 0.5 ? rand(1, 10) : -rand(1, 10));
+    const vName = "score";
+    const resVrai = rand(1, 10);
+    const resFaux = rand(20, 30);
+    const isComplex = difficulty === 3;
+    const multiplicateur = isComplex ? 2 : 1;
+    const conditionMet = (testVal * multiplicateur) > seuil;
+    const result = conditionMet ? resVrai : resFaux;
+
+    let conditionText = isComplex
+        ? `si (${vName} * ${multiplicateur} > ${seuil}) alors`
+        : `si (${vName} > ${seuil}) alors`;
+
+    const blocks = [
+        { type: "var", text: `mettre ${vName} à ${testVal}`, highlight: vName },
+        { type: "control", text: conditionText, highlight: vName },
+        { type: "looks", text: `dire ${resVrai}`, indent: 1 },
+        { type: "control", text: `sinon` },
+        { type: "looks", text: `dire ${resFaux}`, indent: 1 },
+    ];
+
+    // --- CONSTRUCTION DE L'EXPLICATION CLAIRE ---
+    let explanationSteps = [];
+
+    // Étape 1 : Le calcul du test
+    const valCompare = testVal * multiplicateur;
+    if (isComplex) {
+        explanationSteps.push(`1️⃣ Calcul du test : ${testVal} × ${multiplicateur} = ${valCompare}.`);
+        explanationSteps.push(`   Est-ce que ${valCompare} > ${seuil} ?`);
+    } else {
+        explanationSteps.push(`1️⃣ Test : Est-ce que ${testVal} > ${seuil} ?`);
+    }
+
+    // Étape 2 : Le verdict et la conclusion
+    if (conditionMet) {
+        explanationSteps.push(`2️⃣ 👉 OUI, c'est VRAI.`);
+        explanationSteps.push(`3️⃣ Donc on exécute le bloc "alors" (le premier).`);
+        explanationSteps.push(`✅ Le lutin dit : ${result}.`);
+    } else {
+        explanationSteps.push(`2️⃣ 👉 NON, c'est FAUX.`);
+        explanationSteps.push(`3️⃣ Donc on exécute le bloc "sinon" (le deuxième).`);
+        explanationSteps.push(`✅ Le lutin dit : ${result}.`);
+    }
+
+    const explanation = explanationSteps.join("\n");
+
+    // Pièges intelligents
+    let wrongSet = new Set();
+    wrongSet.add(String(conditionMet ? resFaux : resVrai)); // L'autre réponse possible (erreur de branche)
+    wrongSet.add(String(testVal)); // La valeur de la variable (confusion variable/sortie)
+    wrongSet.add(String(seuil)); // Le seuil du test
+    wrongSet.add("Rien");
+
+    if (wrongSet.has(String(result))) wrongSet.delete(String(result));
+
+    // S'assurer d'avoir 3 mauvaises réponses
+    let wrongArr = Array.from(wrongSet);
+    while (wrongArr.length < 3) {
+        wrongArr.push(String(result + rand(1, 10)));
+    }
+
+    return {
+        blocks,
+        q: "Que va dire le lutin ?",
+        correct: String(result),
+        e: explanation,
+        wrong: wrongArr.slice(0, 3),
+        showAxes: false
+    };
+};
+
+// --- ROUTEUR PRINCIPAL ---
+export const generateAlgoQuestion = (config) => {
+    const level = config.level || 1;
+    let scenarioData;
+    const r = Math.random();
+
+    if (level === 1) {
+        if (r < 0.4) scenarioData = generateCalcSequence(1);
+        else scenarioData = generateMovementSequence(1);
+    }
+    else if (level === 2) {
+        if (r < 0.4) scenarioData = generateCalcSequence(2);
+        else if (r < 0.7) scenarioData = generateMovementSequence(2);
+        else scenarioData = generateConditional(2);
+    }
+    else {
+        if (r < 0.3) scenarioData = generateNestedLoop();
+        else if (r < 0.5) scenarioData = generateConditional(3);
+        else scenarioData = generateCalcSequence(3);
+    }
+
+    return {
+        q: scenarioData.q,
+        o: [scenarioData.correct, ...scenarioData.wrong],
+        c: 0,
+        e: scenarioData.e,
+        scratchBlocks: scenarioData.blocks,
+        showAxes: scenarioData.showAxes
+    };
+};
 
 
 
 
 
 export const generateThalesData = (level = 1) => {
-    // 1. CONFIGURATION SELON LE NIVEAU
-    // Niveau 1 : Triangle classique, entiers, calcul direct.
-    // Niveau 2 : Papillon possible, décimaux, calcul direct.
-    // Niveau 3 : Configuration mixte, décimaux, calculs indirects (BD/CE) ou pièges.
-
+    // 1. CONFIGURATION
     let type = 'triangle';
     if (level > 1) {
-        // Au niveau 2+, on introduit le papillon
         type = Math.random() > 0.5 ? 'triangle' : 'papillon';
     }
 
-    // 2. COEFFICIENT K (Facteur d'agrandissement)
+    // 2. COEFFICIENT K
     let k;
     if (level === 1) {
-        // Entiers seulement : x2, x3, x4
         const kInt = [2, 3, 4];
         k = kInt[Math.floor(Math.random() * kInt.length)];
     } else {
-        // Décimaux pour niveau 2 et 3
         const kDec = [1.5, 2.5, 0.4, 0.6, 0.8, 1.2, 2.4];
         k = kDec[Math.floor(Math.random() * kDec.length)];
     }
 
-    // 3. LONGUEURS DE BASE (On part d'entiers pour éviter les virgules flottantes infinies au départ)
-    const baseAB = Math.floor(Math.random() * 4) + 4; // 4 à 8
+    // 3. LONGUEURS DE BASE
+    const baseAB = Math.floor(Math.random() * 4) + 4;
     const baseAC = Math.floor(Math.random() * 4) + 4;
     const baseBC = Math.floor(Math.random() * 5) + 5;
 
@@ -1256,46 +2041,42 @@ export const generateThalesData = (level = 1) => {
         DE: round(baseBC * k)
     };
 
-    // Calcul des segments intermédiaires (Différences/Sommes) pour le niveau 3 ou affichage avancé
+    // --- CORRECTION MAJEURE ICI ---
+    // On utilise Math.abs() pour éviter les longueurs négatives en cas de réduction (k < 1)
     if (type === 'triangle') {
-        vals.BD = round(vals.AD - vals.AB); // Le morceau du bas
-        vals.CE = round(vals.AE - vals.AC);
+        vals.BD = round(Math.abs(vals.AD - vals.AB));
+        vals.CE = round(Math.abs(vals.AE - vals.AC));
     } else {
-        vals.BD = round(vals.AD + vals.AB); // La longueur totale de la sécante
+        vals.BD = round(vals.AD + vals.AB);
         vals.CE = round(vals.AE + vals.AC);
     }
 
-    // 4. CHOIX DE L'INCONNUE (TARGET)
+    // 4. CHOIX DE L'INCONNUE
     let keys;
     if (level === 3) {
-        // Niveau 3 : On force souvent la recherche d'une valeur indirecte ou d'un grand côté
-        // 60% de chance de demander BD ou CE (qui demandent une soustraction/addition finale)
         if (Math.random() < 0.6) {
             keys = ['BD', 'CE'];
         } else {
             keys = ['AD', 'AE', 'DE'];
         }
     } else {
-        // Niveau 1 et 2 : Application directe du produit en croix
         keys = ['AD', 'AE', 'DE', 'AB', 'AC', 'BC'];
     }
 
-    // Sécurité : on filtre les clés qui pourraient valoir NaN ou <= 0 (arrondis foireux)
+    // Filtre des valeurs invalides (NaN ou 0)
     keys = keys.filter(key => vals[key] > 0.1);
 
-    // Sélection finale
+    // Fallback si le filtre a tout vidé (très rare avec la correction Math.abs)
+    if (keys.length === 0) keys = ['AD'];
+
     const targetKey = keys[Math.floor(Math.random() * keys.length)];
     const correctAnswer = vals[targetKey];
 
-    // 5. CRÉATION DE L'ÉNONCÉ (Valeurs données)
+    // 5. ÉNONCÉ (Données fournies)
     let given = {};
 
-    // Logique : Pour trouver X, il faut son homologue et une paire complète
-    // Si on cherche un morceau "indirect" (BD), on donne les bases pour calculer le grand côté d'abord
-
     if (targetKey === 'BD') {
-        given['AB'] = vals.AB; // On donne le petit côté
-        // Et une paire complète ailleurs
+        given['AB'] = vals.AB;
         if (Math.random() > 0.5) { given['AC'] = vals.AC; given['AE'] = vals.AE; }
         else { given['BC'] = vals.BC; given['DE'] = vals.DE; }
     }
@@ -1304,7 +2085,6 @@ export const generateThalesData = (level = 1) => {
         if (Math.random() > 0.5) { given['AB'] = vals.AB; given['AD'] = vals.AD; }
         else { given['BC'] = vals.BC; given['DE'] = vals.DE; }
     }
-    // Cas standards (AB, AC, AD, AE...)
     else if (['AB', 'AD'].includes(targetKey)) {
         given[targetKey === 'AB' ? 'AD' : 'AB'] = vals[targetKey === 'AB' ? 'AD' : 'AB'];
         if (Math.random() > 0.5) { given['AC'] = vals.AC; given['AE'] = vals.AE; }
@@ -1315,32 +2095,37 @@ export const generateThalesData = (level = 1) => {
         if (Math.random() > 0.5) { given['AB'] = vals.AB; given['AD'] = vals.AD; }
         else { given['BC'] = vals.BC; given['DE'] = vals.DE; }
     }
-    else { // BC ou DE
+    else {
         given[targetKey === 'BC' ? 'DE' : 'BC'] = vals[targetKey === 'BC' ? 'DE' : 'BC'];
         if (Math.random() > 0.5) { given['AB'] = vals.AB; given['AD'] = vals.AD; }
         else { given['AC'] = vals.AC; given['AE'] = vals.AE; }
     }
 
-    // 6. GÉNÉRATION DES MAUVAISES RÉPONSES (QCM)
+    // 6. GÉNÉRATION QCM SÉCURISÉE
     let options = new Set();
     options.add(correctAnswer);
 
-    // Pièges contextuels
-    if (targetKey === 'BD' && type === 'triangle') options.add(vals.AD); // L'élève donne le grand côté sans soustraire
+    if (targetKey === 'BD' && type === 'triangle') options.add(vals.AD);
     if (targetKey === 'CE' && type === 'triangle') options.add(vals.AE);
 
-    // Erreurs d'opération inverse (diviser au lieu de multiplier)
-    if (k !== 1) options.add(round(correctAnswer * k));
-    options.add(round(correctAnswer / k));
+    if (k !== 1 && k !== 0) options.add(round(correctAnswer * k)); // Sécurité division par zero
+    if (k !== 0) options.add(round(correctAnswer / k));
 
-    // Valeurs proches
     options.add(round(correctAnswer + 1));
-    options.add(round(correctAnswer - 0.5));
+    options.add(round(Math.abs(correctAnswer - 0.5))); // Math.abs par sécurité
 
-    // Remplissage jusqu'à 4 options uniques
-    while (options.size < 4) {
+    // --- CORRECTION BOUCLE INFINIE ---
+    // Ajout d'un compteur de sécurité 'attempts'
+    let attempts = 0;
+    while (options.size < 4 && attempts < 50) { // <-- STOP APRÈS 50 ESSAIS
+        attempts++;
         const fake = round(correctAnswer + (Math.random() * 10 - 5));
-        if (fake > 0) options.add(fake);
+        if (fake > 0 && !options.has(fake)) options.add(fake);
+    }
+
+    // Si on n'a toujours pas 4 options (très improbable), on remplit brutalement
+    while (options.size < 4) {
+        options.add(round(correctAnswer + options.size + 10));
     }
 
     return {

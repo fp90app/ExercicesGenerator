@@ -60,14 +60,16 @@ export const AUTOMATISMES_DATA = [
             { id: "auto_34_reconnaitre_prop", title: "34. Reconnaître Propor." },
             { id: "auto_35_calcul_prop", title: "35. Calculs Propor." },
             { id: "auto_36_pourcentages_evol", title: "36. Évolutions (%)" },
-            { id: "auto_37_graph", title: "37. Graphique fonction" }
+            { id: "auto_37_graph", title: "37. Images/antécédents sur graphique" },
+            { id: "auto_38_graph2", title: "38. Tableau de valeurs et graphiques" }
         ]
     },
     {
-        title: "V. Algorithmique",
+        title: "V. Informatique",
         color: "cyan", // Nouvelle couleur pour distinguer
         exos: [
-            { id: "auto_38_algo", title: "38. Algorithmique" }
+            { id: "auto_39_algo", title: "39. Algorithmique" },
+            { id: "auto_40_tableur", title: "40. Tableur" }
         ]
     }
 ];
@@ -84,11 +86,21 @@ export const PROCEDURAL_EXOS = [
     "auto_6_formes_multiples",
     "auto_7_ecriture_sci",
     "auto_8_carres_3eme",
+    "auto_9_divisibilite",
+    "auto_10_vocabulaire_ops",
+    "auto_11_simplifier_litteral",
+    "auto_12_valeur_expression",
+    "auto_13_dev_fact",
+    "auto_14_equations",
+    "auto_15_droite_graduee",
 
 
     "auto_26_thales",
 
     "auto_37_graph",
+    "auto_38_graph2",
+    "auto_39_algo",
+    "auto_40_tableur",
 
 
 

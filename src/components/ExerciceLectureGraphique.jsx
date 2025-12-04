@@ -174,8 +174,8 @@ const ExerciceLectureGraphique = ({ user, level, onFinish, onQuit, onSound }) =>
                         <CartesianSystem
                             f={questionData.f}
                             highlightPoints={points}
-                            xMin={-6} xMax={6}
-                            yMin={-6} yMax={6}
+                            xMin={-7} xMax={7}
+                            yMin={-7} yMax={7}
                             width={500}
                             height={500}
                         />
