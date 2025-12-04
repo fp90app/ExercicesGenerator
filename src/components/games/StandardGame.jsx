@@ -16,6 +16,8 @@ import {
     generateDivisibilityQuestion,
     generateVocabularyQuestion,
     generateSimplifyExpressionQuestion,
+    generateSubstitutionQuestion,
+    generateDevelopFactorizeQuestion,
 
 } from '../../utils/mathGenerators';
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
@@ -127,6 +129,18 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                 const params = { level: config.level };
                 for (let i = 0; i < 10; i++) {
                     pool.push(generateSimplifyExpressionQuestion(params));
+                }
+            }
+            else if (config.id === 'auto_12_valeur_expression') { // <--- NOUVEAU BLOC
+                const params = { level: config.level };
+                for (let i = 0; i < 10; i++) {
+                    pool.push(generateSubstitutionQuestion(params));
+                }
+            }
+            else if (config.id === 'auto_13_dev_fact') { // <-- ID UTILISÉ DANS DATA.JS
+                const params = { level: config.level };
+                for (let i = 0; i < 10; i++) {
+                    pool.push(generateDevelopFactorizeQuestion(params));
                 }
             }
             // =========================================================
@@ -245,7 +259,7 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                 type: 'CORRECT',
                 msg: `Bravo ! ${q.e || ""}`
             });
-            setTimeout(nextQuestion, 2500); // Un peu plus de temps pour lire si besoin
+            setTimeout(nextQuestion, 1000); // Un peu plus de temps pour lire si besoin
         } else {
             onSound('WRONG');
             let errorMsg = q.e || "";

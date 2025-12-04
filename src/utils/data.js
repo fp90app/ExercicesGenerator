@@ -36,9 +36,9 @@ export const AUTOMATISMES_DATA = [
             { id: "auto_22_perimetres", title: "22. Périmètres" },
             { id: "auto_23_aires", title: "23. Aires" },
             { id: "auto_24_volumes", title: "24. Volumes" },
-            { id: "auto_25_pythagore", title: "25. Pythagore (situations)" },
-            { id: "auto_26_thales", title: "26. Thalès (situations)" },
-            { id: "auto_27_cosinus", title: "27. Cosinus (situations)" },
+            { id: "auto_25_pythagore", title: "25. Pythagore" },
+            { id: "auto_26_thales", title: "26. Thalès" },
+            { id: "auto_27_trigo", title: "27. Trigonométrie" },
             { id: "auto_28_symetries", title: "28. Transformations" }
         ]
     },

@@ -1749,6 +1749,520 @@ export const generateSimplifyExpressionQuestion = (config) => {
 
 
 
+// --- AUTO 12 - SUBSTITUTION (VERSION FINALE PRO) ---
+export const generateSubstitutionQuestion = (config) => {
+    const lvl = config.level || 1;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // Génère un entier relatif non nul
+    const randNz = (limit) => {
+        let n = 0;
+        while (n === 0) n = rand(-limit, limit);
+        return n;
+    };
+
+    // --- UTILITAIRES DE FORMATAGE AVANCÉS ---
+
+    // 1. Parenthèses pour calculs négatifs : -3 -> (-3)
+    const p = (n) => n < 0 ? `(${n})` : n;
+
+    // 2. Signe simple : 5 -> + 5
+    const fmtSign = (n) => n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
+
+    // 3. Coefficient de début : 1x -> x, -1x -> -x
+    const fmtCoef = (n, variable) => {
+        if (n === 0) return "0";
+        if (n === 1) return variable;
+        if (n === -1) return `-${variable}`;
+        return `${n}${variable}`;
+    };
+
+    // 4. Coefficient de milieu (avec espaces) : + 1x -> + x, - 1x -> - x
+    const fmtMidCoef = (n, variable) => {
+        if (n === 0) return "";
+        if (n === 1) return `+ ${variable}`;
+        if (n === -1) return `- ${variable}`;
+        return `${n >= 0 ? '+ ' + n : '- ' + Math.abs(n)}${variable}`;
+    };
+
+    // 5. Facteur devant parenthèse : 1(..) -> (..), -1(..) -> -(..)
+    const fmtFactor = (n) => {
+        if (n === 1) return "";
+        if (n === -1) return "-";
+        return String(n);
+    };
+
+    const v = pick(["x", "y", "a", "t", "n"]); // Variable dynamique
+
+    let q, correct, e;
+    let wrong = new Set();
+
+    // =================================================================
+    // NIVEAU 1 : BASES POSITIVES & MÉCANISMES
+    // =================================================================
+    if (lvl === 1) {
+        const valX = rand(2, 9);
+        const mode = pick(["simple_mul", "add_mul", "sub_var"]);
+
+        if (mode === "simple_mul") {
+            // Ex: 4x pour x=3
+            const a = rand(3, 9);
+            q = `Calculer la valeur de ${fmtCoef(a, v)} pour ${v} = ${valX}`;
+            const res = a * valX;
+            correct = String(res);
+
+            e = `Il y a une multiplication cachée : "${fmtCoef(a, v)}" signifie "${a} × ${v}".\n\nCalcul : ${a} × ${valX} = ${res}.`;
+
+            wrong.add(String(parseInt(`${a}${valX}`))); // Piège 43
+            wrong.add(String(a + valX)); // Piège 7
+            wrong.add(String(res + 10));
+        }
+        else if (mode === "add_mul") {
+            // Ex: 3x + 2 pour x=4
+            const a = rand(2, 5);
+            const b = rand(1, 10);
+            q = `Calculer ${fmtCoef(a, v)} + ${b} pour ${v} = ${valX}`;
+            const res = a * valX + b;
+            correct = String(res);
+
+            e = `1. On remplace ${v} par ${valX} : ${a} × ${valX} + ${b}\n2. Priorité à la multiplication : ${a * valX} + ${b}\n3. Résultat : ${res}.`;
+
+            wrong.add(String((a + b) * valX)); // Erreur priorité (3+2)*4
+            wrong.add(String(parseInt(`${a}${valX}`) + b)); // 34 + 2
+            wrong.add(String(a + valX + b)); // Tout additionner
+        }
+        else {
+            // Ex: 20 - x pour x=5
+            const start = rand(10, 20);
+            q = `Calculer ${start} - ${v} pour ${v} = ${valX}`;
+            const res = start - valX;
+            correct = String(res);
+            e = `On remplace ${v} par sa valeur.\n${start} - ${valX} = ${res}.`;
+            wrong.add(String(start + valX));
+            wrong.add(String(valX - start));
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 2 : RELATIFS & CARRÉS (PIÈGES SIGNES)
+    // =================================================================
+    else if (lvl === 2) {
+        const valX = randNz(5);
+        const valXStr = p(valX); // (-3) ou 3
+
+        const mode = pick(["linear_neg", "simple_square", "coeff_square"]);
+
+        if (mode === "linear_neg") {
+            // Ex: -3x + 4 pour x = -2
+            const a = randNz(5);
+            const b = randNz(9);
+
+            q = `Calculer ${fmtCoef(a, v)} ${fmtSign(b)} pour ${v} = ${valX}`;
+            const res = a * valX + b;
+            correct = String(res);
+
+            e = `Attention aux signes !\n1. On remplace : ${a} × ${valXStr} ${fmtSign(b)}\n2. Multiplication : ${a * valX} ${fmtSign(b)}\n3. Résultat : ${res}.`;
+
+            wrong.add(String(Math.abs(a * valX) + b)); // Erreur signe produit
+            wrong.add(String(a * valX - b)); // Erreur signe constante
+            wrong.add(String(a + valX + b)); // Tout additionner
+        }
+        else if (mode === "simple_square") {
+            // Ex: x² pour x = -3 (LE PIÈGE)
+            const b = rand(0, 5);
+            const expr = b === 0 ? `${v}²` : `${v}² + ${b}`;
+            q = `Calculer ${expr} pour ${v} = ${valX}`;
+
+            const res = valX * valX + b;
+            correct = String(res);
+
+            if (valX < 0) {
+                e = `Rappel : Le carré d'un nombre négatif est POSITIF.\n${v}² = (${valX}) × (${valX}) = ${valX * valX}.\n(Moins par moins donne plus).\n\nRésultat : ${res}.`;
+                wrong.add(String(-Math.abs(valX * valX) + b)); // Piège -9
+            } else {
+                e = `On calcule le carré : ${valX} × ${valX} = ${valX * valX}.\nPuis on ajoute ${b} : ${res}.`;
+            }
+
+            wrong.add(String(valX * 2 + b)); // x*2 au lieu de x²
+            wrong.add(String(valX + b));
+        }
+        else {
+            // Ex: -2x² pour x = 3
+            const a = -1 * rand(2, 5); // Toujours négatif pour tester la priorité
+            q = `Calculer ${fmtCoef(a, v)}² pour ${v} = ${valX}`;
+            const res = a * (valX * valX);
+            correct = String(res);
+
+            e = `Priorité aux puissances !\n1. D'abord le carré : ${valXStr}² = ${valX * valX}\n2. Ensuite on multiplie par ${a} : ${a} × ${valX * valX}\n\nRésultat : ${res}.`;
+
+            wrong.add(String((a * valX) * (a * valX))); // (ax)²
+            wrong.add(String(a * valX * 2)); // x*2
+            wrong.add(String(Math.abs(res))); // Oubli du signe
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 3 : TECHNIQUE (PARENTHÈSES, 2 VARIABLES, POLYNÔMES)
+    // =================================================================
+    else {
+        const mode = pick(["two_vars", "parentheses_distrib", "complex_square"]);
+
+        if (mode === "two_vars") {
+            // Ex: 3x - 2y pour x=2 et y=-3
+            const valX = randNz(4);
+            const valY = randNz(4);
+            const a = rand(2, 5);
+            const b = rand(2, 5); // b positif ici, pour l'écriture a*x - b*y
+
+            q = `Calculer ${fmtCoef(a, "x")} - ${fmtCoef(b, "y")} pour x = ${valX} et y = ${valY}`;
+            const res = (a * valX) - (b * valY);
+            correct = String(res);
+
+            e = `On remplace séparément :\n1. ${fmtCoef(a, "x")} -> ${a} × ${p(valX)} = ${a * valX}\n2. -${fmtCoef(b, "y")} -> -${b} × ${p(valY)} = ${-b * valY}\n\nTotal : ${a * valX} + (${-b * valY}) = ${res}.`;
+
+            wrong.add(String(a * valX + b * valY)); // Erreur de signe central
+            wrong.add(String((a - b) * (valX - valY)));
+            wrong.add(String(res * -1));
+        }
+        else if (mode === "parentheses_distrib") {
+            // Ex: -2(x + 3) pour x = -5
+            const valX = randNz(5);
+            const k = randNz(4);
+            const offset = randNz(5);
+
+            // Formatage parfait du facteur k : -1(..) devient -(..)
+            q = `Calculer ${fmtFactor(k)}(${v} ${fmtSign(offset)}) pour ${v} = ${valX}`;
+            const res = k * (valX + offset);
+            correct = String(res);
+
+            const sum = valX + offset;
+            e = `Priorité aux parenthèses :\n1. Intérieur : ${p(valX)} ${fmtSign(offset)} = ${sum}\n2. Multiplication : ${k} × ${p(sum)}\n\nRésultat : ${res}.`;
+
+            wrong.add(String(k * valX + offset)); // Oubli de distribuer
+            wrong.add(String(k * valX * offset)); // Mult au lieu d'add
+            wrong.add(String(Math.abs(res)));
+        }
+        else {
+            // Ex: x² - 3x + 1 pour x = -2
+            const valX = randNz(4);
+            const b = randNz(5);
+            const c = randNz(10);
+
+            // Formatage parfait du terme central : -1x devient - x
+            q = `Calculer ${v}² ${fmtMidCoef(b, v)} ${fmtSign(c)} pour ${v} = ${valX}`;
+
+            const term1 = valX * valX;
+            const term2 = b * valX;
+            const res = term1 + term2 + c;
+
+            correct = String(res);
+
+            e = `Calculons étape par étape avec ${v} = ${valX} :\n1. ${v}² = ${p(valX)} × ${p(valX)} = ${term1}\n2. ${fmtMidCoef(b, v)} = ${b} × ${p(valX)} = ${term2}\n3. Total : ${term1} ${fmtSign(term2)} ${fmtSign(c)} = ${res}.`;
+
+            wrong.add(String(term1 - term2 + c)); // Erreur signe central
+            wrong.add(String(-term1 + term2 + c)); // Erreur signe carré
+            wrong.add(String(term1 + term2 - c)); // Erreur signe constante
+        }
+    }
+
+    // --- FINALISATION ---
+
+    // 1. Suppression de la bonne réponse dans les leurres (si elle y est)
+    if (wrong.has(correct)) wrong.delete(correct);
+
+    // 2. Conversion en tableau
+    let wrongArray = Array.from(wrong);
+
+    // 3. Boucle de sécurité pour avoir 3 mauvaises réponses uniques
+    let attempts = 0;
+    while (wrongArray.length < 3 && attempts < 100) {
+        // Génère un nombre proche de la réponse (ex: res+1, res-5)
+        let fake = parseInt(correct) + randNz(10);
+        // Vérifie qu'il n'est ni la bonne réponse, ni déjà présent
+        if (String(fake) !== correct && !wrongArray.includes(String(fake))) {
+            wrongArray.push(String(fake));
+        }
+        attempts++;
+    }
+
+    return { q, o: [correct, ...wrongArray], c: 0, e };
+};
+
+// --- AUTO 13 - DÉVELOPPER (PROGRESSION PÉDAGOGIQUE FINE) ---
+export const generateDevelopFactorizeQuestion = (config) => {
+    const lvl = config.level || 1;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // Génère un entier relatif non nul
+    const randNz = (limit) => {
+        let n = 0;
+        while (n === 0) n = rand(-limit, limit);
+        return n;
+    };
+
+    // --- UTILITAIRES DE FORMATAGE (POUR ÉVITER 1x, + -5, etc.) ---
+
+    // 1. Constante (ex: "+ 3", "- 5")
+    const fmtSign = (n) => n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
+
+    // 2. Début d'expression (ex: "x", "-x", "2x")
+    const fmtStart = (n, v) => {
+        if (n === 0) return "0";
+        if (n === 1) return v;
+        if (n === -1) return `-${v}`;
+        return `${n}${v}`;
+    };
+
+    // 3. Milieu d'expression (ex: "+ x", "- x", "+ 2x")
+    const fmtMiddle = (n, v) => {
+        if (n === 0) return "";
+        if (n === 1) return `+ ${v}`;
+        if (n === -1) return `- ${v}`;
+        return n > 0 ? `+ ${n}${v}` : `- ${Math.abs(n)}${v}`;
+    };
+
+    // 4. Terme au carré (ex: "x²", "-x²", "2x²")
+    const fmtSquare = (n, v) => {
+        if (n === 0) return "0";
+        if (n === 1) return `${v}²`;
+        if (n === -1) return `-${v}²`;
+        return `${n}${v}²`;
+    };
+
+    // 5. Coefficient brut pour explications
+    const fmtCoef = (n, v) => {
+        if (n === 1) return v;
+        if (n === -1) return `-${v}`;
+        return `${n}${v}`;
+    };
+
+    const v = pick(["x", "y", "a", "t"]); // Variable aléatoire
+    let q, correct, e;
+    let wrong = new Set();
+
+    // =================================================================
+    // NIVEAU 1 : BASIQUE
+    // Contraintes : k positif, pas de coeff devant x (1x), (x+b)
+    // Variantes : 3(x+5) OU (x+5)×3
+    // =================================================================
+    if (lvl === 1) {
+        const k = rand(2, 9); // Facteur positif
+        const b = rand(1, 9); // Constante
+        const isMinus = Math.random() > 0.5; // + ou - dans la parenthèse
+        const isPostMult = Math.random() > 0.4; // 40% de chance d'avoir (x+5)×3
+
+        const signStr = isMinus ? "-" : "+";
+        const bVal = isMinus ? -b : b;
+
+        // Construction de la question
+        if (isPostMult) {
+            q = `Développer : (${v} ${signStr} ${b}) × ${k}`;
+        } else {
+            q = `Développer : ${k}(${v} ${signStr} ${b})`;
+        }
+
+        // Calculs (rappel : coeff de x est 1)
+        const resA = k * 1;    // Coeff devant x
+        const resB = k * bVal; // Constante
+
+        correct = `${fmtStart(resA, v)} ${fmtSign(resB)}`;
+
+        e = `On distribue le facteur ${k} sur chaque terme :\n`;
+        e += `• ${k} × ${v} = ${fmtCoef(resA, v)}\n`;
+        e += `• ${k} × (${bVal}) = ${resB}`;
+
+        // --- PIÈGES N1 ---
+        // 1. Erreur de signe (ex: 3x + 15 au lieu de 3x - 15)
+        wrong.add(`${fmtStart(resA, v)} ${fmtSign(-resB)}`);
+
+        // 2. Oubli de distribuer au 2ème terme (ex: 3x - 5)
+        wrong.add(`${v} ${signStr} ${b}`); // On garde juste v car coeff 1
+        wrong.add(`${fmtStart(resA, v)} ${signStr} ${b}`); // Si élève met 3x - 5
+
+        // 3. Regroupement interdit (ex: 3x + 15 -> 18x)
+        const forbiddenSum = resA + resB;
+        if (forbiddenSum !== 0) wrong.add(`${fmtCoef(forbiddenSum, v)}`);
+        else wrong.add(`${resA + Math.abs(resB)}${v}`); // Fallback
+
+        // 4. Addition au lieu de multiplication (ex: 3 + x + 5)
+        wrong.add(`${v} ${fmtSign(k + bVal)}`);
+    }
+
+    // =================================================================
+    // NIVEAU 2 : INTERMÉDIAIRE
+    // On introduit UNE difficulté : Coeff, Négatif ou Lettre
+    // =================================================================
+    else if (lvl === 2) {
+        const mode = pick(["coeff_inside", "negative_factor", "letter_factor"]);
+
+        if (mode === "coeff_inside") {
+            // Cas : 3(5a + 2) -> Coeff dans la parenthèse
+            const k = rand(2, 6);
+            const a = rand(2, 5); // Coeff > 1
+            const b = randNz(9);
+
+            q = `Développer : ${k}(${fmtStart(a, v)} ${fmtSign(b)})`;
+
+            const resA = k * a;
+            const resB = k * b;
+            correct = `${fmtStart(resA, v)} ${fmtSign(resB)}`;
+
+            e = `On multiplie le facteur par le coefficient de ${v} :\n• ${k} × ${fmtCoef(a, v)} = ${fmtCoef(resA, v)}\n• ${k} × (${b}) = ${resB}`;
+
+            // Piège : Oubli de multiplier le coeff (ex: 3(5x+2) -> 5x + 6)
+            wrong.add(`${fmtStart(a, v)} ${fmtSign(resB)}`);
+            // Piège : Additionner k et a (ex: 8x + 6)
+            wrong.add(`${fmtStart(k + a, v)} ${fmtSign(resB)}`);
+        }
+        else if (mode === "negative_factor") {
+            // Cas : -2(3x - 5) -> Facteur négatif entier
+            let k = rand(2, 6);
+            k = -k;
+
+            const a = rand(1, 5); // Peut avoir un coeff ou pas
+            const b = randNz(9);
+
+            q = `Développer : ${k}(${fmtStart(a, v)} ${fmtSign(b)})`;
+
+            const resA = k * a;
+            const resB = k * b;
+            correct = `${fmtStart(resA, v)} ${fmtSign(resB)}`;
+
+            e = `Attention au signe du facteur (${k}) !\n• ${k} × ${fmtStart(a, v)} = ${fmtCoef(resA, v)}\n• ${k} × (${b}) = ${resB}`;
+
+            // Piège : Erreur de signe sur le 2eme (très fréquent)
+            wrong.add(`${fmtStart(resA, v)} ${fmtSign(-resB)}`);
+            // Piège : Oubli du signe sur le 1er
+            wrong.add(`${fmtStart(Math.abs(resA), v)} ${fmtSign(resB)}`);
+        }
+        else {
+            // Cas : x(x + 7) -> Lettre en facteur (positif simple)
+            const kName = v; // Juste "x"
+            const a = 1;     // On reste simple pour le coeff intérieur
+            const b = randNz(9);
+
+            q = `Développer : ${kName}(${v} ${fmtSign(b)})`;
+
+            const resSquare = 1; // 1x²
+            const resLin = b;    // bx
+
+            correct = `${v}² ${fmtMiddle(resLin, v)}`;
+            correct = correct.replace(/\s+/g, ' ').trim();
+
+            e = `On distribue la lettre ${v} (Rappel : ${v}×${v} = ${v}²) :\n• ${v} × ${v} = ${v}²\n• ${v} × ${b} = ${fmtCoef(b, v)}`;
+
+            // Piège : Oubli du carré (x+7x)
+            wrong.add(`${v} ${fmtMiddle(resLin, v)}`);
+            // Piège : x*x = 2x
+            wrong.add(`2${v} ${fmtMiddle(resLin, v)}`);
+            // Piège : Oubli de distribuer la lettre au 2eme (x² + 7)
+            wrong.add(`${v}² ${fmtSign(b)}`);
+        }
+
+        // Piège commun N2 : Regroupement interdit
+        // Pour générer ça, on calcule la "somme" des chiffres visibles
+        // C'est approximatif mais suffisant pour un distractor
+        wrong.add(`${rand(10, 25)}${v}`);
+    }
+
+    // =================================================================
+    // NIVEAU 3 : EXPERT ("LA SAUCE")
+    // Mélange : Négatif + Lettre + Coeff + Ordre inversé
+    // =================================================================
+    else {
+        // Ex: -3x(2 - 5x)
+
+        const c = randNz(4); // Coeff du facteur (ex: -3)
+        const kName = fmtStart(c, v); // "-3x"
+
+        const a = randNz(5); // Coeff x intérieur
+        const b = randNz(9); // Constante intérieure
+
+        const isOrderSwapped = Math.random() > 0.5; // (2 - 5x) ou (5x - 2)
+
+        if (isOrderSwapped) {
+            // k(b + ax) -> ex: -2x(5 - 3x)
+            q = `Développer : ${kName}(${b} ${fmtMiddle(a, v)})`;
+
+            // Calculs
+            // Terme linéaire : (cx * b)
+            const resLin = c * b;
+            // Terme carré : (cx * ax)
+            const resSquare = c * a;
+
+            // On présente le résultat dans l'ordre canonique (Carré puis Linéaire)
+            // ou dans l'ordre de calcul ? 
+            // Pour le niveau expert, l'ordre canonique est préférable, mais l'ordre de calcul est plus naturel.
+            // On va donner l'ordre canonique pour habituer au standard mathématique.
+            correct = `${fmtSquare(resSquare, v)} ${fmtMiddle(resLin, v)}`;
+
+            e = `On distribue ${kName} sur chaque terme :\n• ${kName} × ${b} = ${fmtCoef(resLin, v)}\n• ${kName} × ${fmtCoef(a, v)} = ${fmtSquare(resSquare, v)}`;
+        }
+        else {
+            // k(ax + b) -> ex: -2x(-3x + 5)
+            q = `Développer : ${kName}(${fmtStart(a, v)} ${fmtSign(b)})`;
+
+            const resSquare = c * a;
+            const resLin = c * b;
+
+            correct = `${fmtSquare(resSquare, v)} ${fmtMiddle(resLin, v)}`;
+
+            e = `On distribue ${kName} :\n• ${kName} × ${fmtCoef(a, v)} = ${fmtSquare(resSquare, v)}\n• ${kName} × ${b} = ${fmtCoef(resLin, v)}`;
+        }
+
+        correct = correct.replace(/\s+/g, ' ').trim();
+
+        // --- PIÈGES N3 ---
+        const trueSq = isOrderSwapped ? c * a : c * a;
+        const trueLin = isOrderSwapped ? c * b : c * b;
+
+        // 1. Erreur de signe (inversion complète)
+        wrong.add(`${fmtSquare(-trueSq, v)} ${fmtMiddle(-trueLin, v)}`.replace(/\s+/g, ' ').trim());
+
+        // 2. Oubli du carré (ex: -6x - 10x)
+        wrong.add(`${fmtCoef(trueSq, v)} ${fmtMiddle(trueLin, v)}`.replace(/\s+/g, ' ').trim());
+
+        // 3. Regroupement absurde (ex: -16x²)
+        wrong.add(`${fmtSquare(trueSq + trueLin, v)}`);
+
+        // 4. Inversion x et x² (ex: -10x² - 6x si c'était l'inverse)
+        wrong.add(`${fmtSquare(trueLin, v)} ${fmtMiddle(trueSq, v)}`.replace(/\s+/g, ' ').trim());
+    }
+
+    // --- FINALISATION ---
+    if (wrong.has(correct)) wrong.delete(correct);
+    let wrongArray = Array.from(wrong);
+
+    // Remplissage Filler
+    let attempts = 0;
+    while (wrongArray.length < 3 && attempts < 50) {
+        let filler = "";
+
+        if (correct.includes("²")) {
+            // Filler quadratique
+            const fA = randNz(10);
+            const fB = randNz(10);
+            filler = `${fmtSquare(fA, v)} ${fmtMiddle(fB, v)}`;
+        } else {
+            // Filler linéaire
+            const fA = randNz(20);
+            const fB = randNz(20);
+            filler = `${fmtStart(fA, v)} ${fmtSign(fB)}`;
+        }
+
+        filler = filler.replace(/\s+/g, ' ').trim();
+
+        if (filler !== correct && !wrongArray.includes(filler)) {
+            wrongArray.push(filler);
+        }
+        attempts++;
+    }
+
+    return { q, o: [correct, ...wrongArray], c: 0, e };
+};
+
 
 
 
