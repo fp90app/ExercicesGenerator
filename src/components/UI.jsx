@@ -114,7 +114,7 @@ export const SchoolHeader = () => (
                     <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-800 leading-none">
                         COLLÈGE <span className="text-purple-600">SIMONE SIGNORET</span>
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1 font-medium">Espace d'entraînement Mathématiques</p>
+                    <p className="text-slate-500 text-sm mt-1 font-medium">Espace d'entraînement aux mathématiques</p>
                 </div>
             </div>
         </div>

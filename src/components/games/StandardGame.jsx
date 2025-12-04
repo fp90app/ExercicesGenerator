@@ -14,6 +14,8 @@ import {
     generateScientificNotationQuestion,
     generateSquareQuestion,
     generateDivisibilityQuestion,
+    generateVocabularyQuestion,
+    generateSimplifyExpressionQuestion,
 
 } from '../../utils/mathGenerators';
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
@@ -121,6 +123,12 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                     pool.push(generateVocabularyQuestion(params));
                 }
             }
+            else if (config.id === 'auto_11_simplifier_litteral') { // <-- AJOUTER
+                const params = { level: config.level };
+                for (let i = 0; i < 10; i++) {
+                    pool.push(generateSimplifyExpressionQuestion(params));
+                }
+            }
             // =========================================================
             // 1. MODES DE TABLES (Simple, Mixte, Division)
             // =========================================================
@@ -225,6 +233,7 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
 
     const handleAnswer = (idx) => {
         if (feedback) return;
+        setSelected(idx);
 
         const clickedValue = q.mixedAnswers[idx];
         const isCorrect = clickedValue === q.correctTxt;
@@ -236,19 +245,21 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                 type: 'CORRECT',
                 msg: `Bravo ! ${q.e || ""}`
             });
-            setTimeout(nextQuestion, 2000);
+            setTimeout(nextQuestion, 2500); // Un peu plus de temps pour lire si besoin
         } else {
             onSound('WRONG');
             let errorMsg = q.e || "";
+            // Si une explication spécifique existe pour ce piège (défini dans mathGenerators)
             if (q.detailedFeedback && q.detailedFeedback[clickedValue]) {
                 errorMsg = q.detailedFeedback[clickedValue];
             }
+
+            // --- C'EST ICI QUE CA SE JOUE ---
+            // On ajoute explicitement la bonne réponse dans le message
             setFeedback({
                 type: 'WRONG',
-                msg: `Perdu... ${errorMsg}`
+                msg: `Perdu... La bonne réponse était : ${q.correctTxt}\n\n${errorMsg}`
             });
-
-            // On ne met RIEN ici, l'élève cliquera sur le bouton "Suivant"
         }
     };
     const nextQuestion = () => {
@@ -350,16 +361,64 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                             </div>
                         )}
                         {/* FIN DU NOUVEAU BLOC */}
-                        <div className="grid gap-3">{q.mixedAnswers.map((ans, idx) => {
-                            let style = "p-4 rounded-xl font-bold text-lg border-2 text-left transition-all ";
-                            if (selected === null) style += "bg-white border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 text-slate-600";
-                            else {
-                                if (idx === q.correctIndex) style += "bg-emerald-100 border-emerald-500 text-emerald-800";
-                                else if (idx === selected) style += "bg-red-50 border-red-200 text-red-400 opacity-50";
-                                else style += "bg-slate-50 border-slate-100 text-slate-300";
-                            }
-                            return <button key={`${current}-${idx}`} onClick={() => handleAnswer(idx)} disabled={selected !== null} className={style}>{ans}</button>
-                        })}</div>
+                        {/* --- DÉBUT DU NOUVEAU BLOC BOUTONS --- */}
+                        <div className="grid grid-cols-1 gap-4">
+                            {q.mixedAnswers.map((answerTxt, idx) => {
+                                // ETATS LOGIQUES
+                                const hasAnswered = feedback !== null; // A-t-on fini de répondre ?
+                                const isCorrectBtn = idx === q.correctIndex; // Est-ce le bouton VRAI ?
+                                const isSelectedBtn = idx === selected; // Est-ce le bouton CLIQUÉ ?
+
+                                // STYLE DE BASE (Neutre)
+                                let baseStyle = "w-full p-4 text-lg font-bold rounded-xl border-2 transition-all duration-200 shadow-sm flex items-center justify-between text-left relative overflow-hidden";
+                                let dynamicStyle = "";
+
+                                if (hasAnswered) {
+                                    // --- MODE RÉSULTAT (Après clic) ---
+                                    if (isCorrectBtn) {
+                                        // C'est la bonne réponse (qu'on l'ait trouvée ou non) -> VERT
+                                        dynamicStyle = "bg-emerald-500 border-emerald-600 text-white scale-[1.02] shadow-md z-10";
+                                    }
+                                    else if (isSelectedBtn && !isCorrectBtn) {
+                                        // C'est ma réponse et elle est fausse -> ROUGE
+                                        dynamicStyle = "bg-red-500 border-red-600 text-white opacity-100 shadow-md";
+                                    }
+                                    else {
+                                        // Les autres réponses fausses -> GRISÉES
+                                        dynamicStyle = "bg-slate-50 border-slate-100 text-slate-300 opacity-50 cursor-not-allowed";
+                                    }
+                                } else {
+                                    // --- MODE JEU (Avant clic) ---
+                                    // Blanc, devient bleu clair au survol
+                                    dynamicStyle = "bg-white border-slate-100 text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]";
+                                }
+
+                                return (
+                                    <button
+                                        key={`${current}-${idx}`}
+                                        className={`${baseStyle} ${dynamicStyle}`}
+                                        onClick={() => handleAnswer(idx)}
+                                        disabled={hasAnswered} // On désactive les clics après la réponse
+                                    >
+                                        {/* TEXTE DE LA RÉPONSE (Gère le HTML simple comme les exposants si besoin) */}
+                                        <span dangerouslySetInnerHTML={{ __html: answerTxt }}></span>
+
+                                        {/* ICÔNES DE FEEDBACK (S'affichent uniquement à la fin) */}
+                                        {hasAnswered && isCorrectBtn && (
+                                            <span className="bg-white text-emerald-500 rounded-full p-1 ml-3 animate-bounce">
+                                                <Icon name="check" weight="bold" />
+                                            </span>
+                                        )}
+                                        {hasAnswered && isSelectedBtn && !isCorrectBtn && (
+                                            <span className="bg-white text-red-500 rounded-full p-1 ml-3 animate-pulse">
+                                                <Icon name="x" weight="bold" />
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {/* --- FIN DU NOUVEAU BLOC BOUTONS --- */}
                         {feedback && (
                             <div className="mt-6 fade-in">
                                 <div className={`p-4 rounded-xl border shadow-sm mb-4 ${feedback.type === 'CORRECT'

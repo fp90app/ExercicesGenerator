@@ -36,7 +36,7 @@ const ExerciceTableauValeursCourbe = ({ user, level, onFinish, onQuit, onSound }
     }, [level]);
 
     const loadQuestion = () => {
-        const newData = generateTableQuestion(level || 1);
+        const newData = generateTableQuestion({ level: level || 1 });
         setData(newData);
         setInputs({});
         setPlacedPoints([]);

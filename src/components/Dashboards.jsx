@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from "firebase/firestore";
-import { db } from '../firebase';
+
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST, TRAINING_MODULES, QUESTIONS_DB, PROCEDURAL_EXOS } from '../utils/data';
 
@@ -59,51 +58,36 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
 };
 
 // --- SURVIVAL VIEW ---
+// --- SURVIVAL VIEW (OPTIMISÉE : 0 LECTURE) ---
 export const SurvivalView = ({ user, onPlay, onBack }) => {
-    const [topScores, setTopScores] = useState({});
-    useEffect(() => {
-        let isMounted = true;
-        const fetchAll = async () => {
-            const dbRef = window.db || db;
-            const collectionFn = window.dbFn?.collection || collection;
-            const getDocsFn = window.dbFn?.getDocs || getDocs;
-            const snapE = await getDocsFn(collectionFn(dbRef, "eleves"));
-            const snapP = await getDocsFn(collectionFn(dbRef, "profs"));
-            if (!isMounted) return;
-            const stats = {};
-            ['EXPLORATEUR', 'AVENTURIER', 'LEGENDE'].forEach(m => {
-                let allScoresE = [], allScoresP = [];
-                const processHistory = (docData, listToPush) => {
-                    const raw = docData.survival_history?.[m];
-                    let hist = Array.isArray(raw) ? raw : (typeof raw === 'number' ? [raw] : []);
-                    hist.forEach(h => {
-                        let val = (typeof h === 'object' && h.val !== undefined) ? h.val : h;
-                        const date = (typeof h === 'object' && h.date) ? h.date : null;
-                        listToPush.push({ nom: docData.nom, classe: docData.classe || "-", val: val, date: date, isUser: docData.id === user.data.id });
-                    });
-                };
-                snapE.forEach(d => processHistory({ ...d.data(), id: d.id }, allScoresE));
-                snapP.forEach(d => processHistory({ ...d.data(), id: d.id }, allScoresP));
-                let myRaw = user.data.survival_history?.[m];
-                let myArr = Array.isArray(myRaw) ? myRaw : (typeof myRaw === 'number' ? [myRaw] : []);
-                const myHistory = myArr.map(x => ({ val: (typeof x === 'object' && x.val !== undefined) ? x.val : x, date: null, isUser: true })).sort((a, b) => b.val - a.val).slice(0, 5);
-                stats[m] = { my: myHistory, class: allScoresE.sort((a, b) => b.val - a.val).slice(0, 5), profs: allScoresP.sort((a, b) => b.val - a.val).slice(0, 5) };
-            });
-            if (isMounted) setTopScores(stats);
-        };
-        fetchAll();
-        return () => { isMounted = false; };
-    }, []);
+
+    // Fonction simple pour récupérer l'historique local sans appeler Firebase
+    const getMyHistory = (mode) => {
+        let myRaw = user.data.survival_history?.[mode];
+        let myArr = Array.isArray(myRaw) ? myRaw : (typeof myRaw === 'number' ? [myRaw] : []);
+
+        return myArr
+            .map(x => ({
+                val: (typeof x === 'object' && x.val !== undefined) ? x.val : x,
+                date: (typeof x === 'object' && x.date) ? x.date : null,
+                isUser: true
+            }))
+            .sort((a, b) => b.val - a.val)
+            .slice(0, 5);
+    };
+
     const modeCards = [
         { id: "EXPLORATEUR", icon: "compass", desc: "Niveau 1", label: "Explorateur", classes: "border-b-emerald-500", iconBg: "bg-emerald-100 text-emerald-600" },
         { id: "AVENTURIER", icon: "flag", desc: "Niveau 2", label: "Aventurier", classes: "border-b-amber-500", iconBg: "bg-amber-100 text-amber-600" },
         { id: "LEGENDE", icon: "skull", desc: "Tous niveaux", label: "Légende", classes: "border-b-red-500", iconBg: "bg-red-100 text-red-600" }
     ];
+
     return (
         <div className="fade-in pb-12">
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
             <h2 className="text-2xl font-black text-slate-800 mb-2">Mode Survie</h2>
-            <LegendBox icon="trophy" color="red" text="Mode Compétition : Pas d'XP à gagner ici, juste la gloire du classement !" />
+            <LegendBox icon="trophy" color="red" text="Mode Défi : Battes ton propre record !" />
+
             <div className="grid md:grid-cols-3 gap-6">
                 {modeCards.map(m => (
                     <div key={m.id} className="flex flex-col gap-4">
@@ -112,9 +96,15 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
                             <h3 className="text-lg font-bold text-slate-800">{m.label}</h3>
                             <p className="text-slate-400 text-xs">{m.desc}</p>
                         </button>
-                        <Leaderboard title="Mon Historique" data={topScores[m.id]?.my || []} unit="" />
-                        <Leaderboard title="Top Élèves" data={topScores[m.id]?.class || []} unit="" />
-                        <Leaderboard title="Top Profs" data={topScores[m.id]?.profs || []} unit="" />
+
+                        {/* Uniquement mon historique */}
+                        <Leaderboard title="Mon Historique" data={getMyHistory(m.id)} unit="" />
+
+                        {/* Message discret pour remplacer le classement global */}
+                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                            <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
+                            <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -151,33 +141,18 @@ export const Login = ({ onLogin, onSound }) => {
 export const TablesView = ({ user, onPlay, onBack, onSound }) => {
     const [selected, setSelected] = useState([]);
     const [ops, setOps] = useState({ mul: true, div: true });
-    const [leaders, setLeaders] = useState({ my: [], class: [], profs: [] });
 
-    // --- CHARGEMENT DU LEADERBOARD POUR LE CHRONO ---
-    useEffect(() => {
-        const fetchL = async () => {
-            const dbRef = window.db || db;
-            const collectionFn = window.dbFn?.collection || collection;
-            const getDocsFn = window.dbFn?.getDocs || getDocs;
-            const snapE = await getDocsFn(collectionFn(dbRef, "eleves"));
-            const snapP = await getDocsFn(collectionFn(dbRef, "profs"));
-            let allScoresE = [], allScoresP = [];
-            const extract = (d, arr) => {
-                const data = d.data();
-                (data.grand_slam_history || []).forEach(h => {
-                    const val = (typeof h === 'object' && h.val) ? h.val : h;
-                    if (!isNaN(val)) arr.push({ nom: data.nom, val: parseFloat(val), isUser: d.id === user.data.id });
-                });
-            };
-            snapE.forEach(d => extract(d, allScoresE));
-            snapP.forEach(d => extract(d, allScoresP));
-            const myRaw = user.data.grand_slam_history || [];
-            const myHist = myRaw.map(h => ({ val: parseFloat((typeof h === 'object' && h.val) ? h.val : h), isUser: true })).sort((a, b) => a.val - b.val).slice(0, 5).map(x => ({ ...x, val: x.val.toFixed(2) }));
-            const fmt = l => l.sort((a, b) => a.val - b.val).slice(0, 5).map(x => ({ ...x, val: x.val.toFixed(2) }));
-            setLeaders({ my: myHist, class: fmt(allScoresE), profs: fmt(allScoresP) });
-        };
-        fetchL();
-    }, [user]);
+    // Calcul de l'historique local uniquement (pas de useEffect, pas de fetch)
+    const myHistory = (user.data.grand_slam_history || [])
+        .map(h => ({
+            val: parseFloat((typeof h === 'object' && h.val) ? h.val : h),
+            date: (typeof h === 'object' && h.date) ? h.date : null,
+            isUser: true
+        }))
+        .filter(x => !isNaN(x.val))
+        .sort((a, b) => a.val - b.val) // Tri par temps (petit = mieux)
+        .slice(0, 5)
+        .map(x => ({ ...x, val: x.val.toFixed(2) }));
 
     const toggle = (id) => { setSelected(prev => { const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]; onSound('CLICK'); return next; }); };
     const isDailyDone = (key) => user.data.daily?.[key] === new Date().toDateString();
@@ -187,7 +162,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
             <div className="grid lg:grid-cols-3 gap-6">
 
-                {/* COLONNE GAUCHE : ENTRAINEMENT CIBLÉ */}
+                {/* COLONNE GAUCHE : ENTRAINEMENT CIBLÉ (Inchangée) */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-1 lg:col-span-2">
                     <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="grid-four" className="text-amber-500" /> I. Entrainement Ciblé</h3>
                     <LegendBox icon="infinity" color="purple" text="20 points chaque jour pour les tables et les mélanges de divisions" />
@@ -229,7 +204,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                     </div>
                 </div>
 
-                {/* COLONNE DROITE : CHOIX LIBRE & CHRONO (C'est ce qui manquait !) */}
+                {/* COLONNE DROITE : OPTIMISÉE */}
                 <div className="space-y-6 col-span-1">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="shuffle" className="text-indigo-500" /> 2. Choix Libre</h3>
@@ -249,9 +224,12 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                         <div className="text-xs text-slate-500 mb-4 bg-slate-50 p-2 rounded">Le Grand Chelem : 20 questions (× et ÷ mélangés). Vise le meilleur temps !</div>
                         <button onClick={() => onPlay('CHRONO', null)} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black py-4 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 mb-6">LANCER LE CHRONO</button>
                         <div className="space-y-2">
-                            <Leaderboard title="Mon Historique" data={leaders.my} unit="s" />
-                            <Leaderboard title="Top Élèves" data={leaders.class} unit="s" />
-                            <Leaderboard title="Top Profs" data={leaders.profs} unit="s" />
+                            <Leaderboard title="Mon Historique" data={myHistory} unit="s" />
+                            {/* Message discret pour remplacer le classement global */}
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                                <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
+                                <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -259,6 +237,8 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
         </div>
     );
 };
+
+
 
 // =========================================================
 // 4. STUDENT DASHBOARD (MAIN)

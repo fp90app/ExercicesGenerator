@@ -1247,6 +1247,516 @@ export const generateDivisibilityQuestion = (config) => {
     return { q, o: finalO, c: 0, e };
 };
 
+
+
+
+
+// --- AUTO 10 - VOCABULAIRE DES OPÉRATIONS (VERSION DÉTAILLÉE PRO) ---
+export const generateVocabularyQuestion = (config) => {
+    const lvl = config.level || 1;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // Utilitaires de formatage
+    const fmtSign = (n) => n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
+    const v = pick(["n", "x", "y", "a", "t"]); // Variable dynamique
+
+    let q, correct, e;
+    let wrong = new Set();
+
+    // =================================================================
+    // NIVEAU 1 : DÉFINITIONS AVEC ÉTAPES DE SIMPLIFICATION
+    // =================================================================
+    if (lvl === 1) {
+        const mode = pick(["basique", "mots_cles"]);
+
+        if (mode === "basique") {
+            const types = [
+                {
+                    name: "double",
+                    res: `2${v}`,
+                    trap: [`${v}²`, `${v} + 2`],
+                    expl: `Le **double** signifie "multiplier par 2".\nCalcul : 2 × ${v} = ${v} × 2 = 2${v}.`
+                },
+                {
+                    name: "triple",
+                    res: `3${v}`,
+                    trap: [`${v}³`, `${v} + 3`],
+                    expl: `Le **triple** signifie "multiplier par 3".\nCalcul : 3 × ${v} = 3${v}.`
+                },
+                {
+                    name: "quadruple",
+                    res: `4${v}`,
+                    trap: [`${v}⁴`, `${v} + 4`],
+                    expl: `Le **quadruple** signifie "multiplier par 4".\nCalcul : 4 × ${v} = 4${v}.`
+                },
+                {
+                    name: "moitié",
+                    res: `${v}/2`,
+                    trap: [`2${v}`, `${v} - 2`],
+                    expl: `La **moitié** signifie "diviser par 2".\nOn l'écrit sous forme de fraction : ${v} sur 2.`
+                },
+                {
+                    name: "tiers",
+                    res: `${v}/3`,
+                    trap: [`3${v}`, `${v} - 3`],
+                    expl: `Le **tiers** signifie "diviser par 3".\nOn l'écrit sous forme de fraction : ${v} sur 3.`
+                },
+                {
+                    name: "quart",
+                    res: `${v}/4`,
+                    trap: [`4${v}`, `${v} - 4`],
+                    expl: `Le **quart** signifie "diviser par 4".\nOn l'écrit sous forme de fraction : ${v} sur 4.`
+                },
+                {
+                    name: "carré",
+                    res: `${v}²`,
+                    trap: [`2${v}`, `${v} + 2`],
+                    expl: `Le **carré** correspond à la puissance 2.\nCela signifie que l'on multiplie le nombre par lui-même : ${v} × ${v} = ${v}².`
+                },
+                {
+                    name: "cube",
+                    res: `${v}³`,
+                    trap: [`3${v}`, `${v} + 3`],
+                    expl: `Le **cube** correspond à la puissance 3.\nCela signifie : ${v} × ${v} × ${v} = ${v}³.`
+                }
+            ];
+            const item = pick(types);
+            q = `Quelle est l'expression du "${item.name}" de ${v} ?`;
+            correct = item.res;
+            e = item.expl;
+            item.trap.forEach(t => wrong.add(t));
+        }
+        else {
+            const sub = pick(["pred", "succ", "opp", "inv"]);
+            if (sub === "pred") {
+                q = `Le "prédécesseur" de ${v} est :`;
+                correct = `${v} - 1`;
+                e = `Le prédécesseur est le nombre juste **avant**.\nExemple : Avant 10, c'est 9 (10 - 1).\nDonc pour ${v}, c'est ${v} - 1.`;
+                wrong.add(`${v} + 1`); wrong.add(`-${v}`);
+            } else if (sub === "succ") {
+                q = `Le "successeur" de ${v} est :`;
+                correct = `${v} + 1`;
+                e = `Le successeur est le nombre juste **après**.\nExemple : Après 10, c'est 11 (10 + 1).\nDonc pour ${v}, c'est ${v} + 1.`;
+                wrong.add(`${v} - 1`); wrong.add(`2${v}`);
+            } else if (sub === "opp") {
+                q = `L' "opposé" de ${v} s'écrit :`;
+                correct = `-${v}`;
+                e = `L'opposé change le signe du nombre.\nSi on a ${v}, son opposé est -${v}.\nExemple : L'opposé de 5 est -5.`;
+                wrong.add(`1/${v}`); wrong.add(`${v}-1`);
+            } else { // Inverse
+                q = `L' "inverse" de ${v} s'écrit :`;
+                correct = `1/${v}`;
+                e = `L'inverse consiste à diviser 1 par le nombre.\nL'inverse de ${v} est 1 ÷ ${v}, qu'on écrit 1/${v}.`;
+                wrong.add(`-${v}`); wrong.add(`${v}/1`);
+            }
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 2 : TRADUCTION AVEC RÈGLES D'ÉCRITURE
+    // =================================================================
+    else if (lvl === 2) {
+        let k = rand(2, 10);
+
+        const scenarios = [
+            {
+                txt: `La somme de ${v} et de ${k}`,
+                math: `${v} + ${k}`,
+                wrong: [`${k}${v}`, `${v}${k}`, `${v} - ${k}`],
+                expl: `Le mot "somme" indique une addition (+).\nOn écrit simplement les deux termes avec un plus : ${v} + ${k}.`
+            },
+            {
+                txt: `Le produit de ${v} par ${k}`,
+                math: `${k}${v}`,
+                wrong: [`${v} + ${k}`, `${v}/${k}`, `${v}^${k}`],
+                expl: `Le mot "produit" indique une multiplication (×).\nOn écrit : ${k} × ${v}.\nEn algèbre, on supprime le signe × et on place le chiffre devant : ${k}${v}.`
+            },
+            {
+                txt: `La différence entre ${v} et ${k}`,
+                math: `${v} - ${k}`,
+                wrong: [`${v} + ${k}`, `${k} - ${v}`, `${v} / ${k}`],
+                expl: `Le mot "différence" indique une soustraction (-).\nOn soustrait le deuxième terme au premier : ${v} - ${k}.`
+            },
+            {
+                txt: `Le quotient de ${v} par ${k}`,
+                math: `${v}/${k}`,
+                wrong: [`${k}/${v}`, `${v} - ${k}`, `${k}${v}`],
+                expl: `Le mot "quotient" indique une division.\nOn l'écrit sous forme fractionnaire : ${v} au numérateur (en haut) et ${k} au dénominateur (en bas).`
+            }
+        ];
+
+        if (Math.random() > 0.5) {
+            // Mode Traduction
+            const item = pick(scenarios);
+            q = `Traduire : "${item.txt}"`;
+            correct = item.math;
+            e = item.expl;
+            item.wrong.forEach(w => wrong.add(w));
+        } else {
+            // Mode Calcul numérique
+            const valV = rand(2, 6);
+            const isSquare = Math.random() > 0.5;
+
+            if (isSquare) {
+                q = `Si ${v} = ${valV}, combien vaut son carré (${v}²) ?`;
+                correct = String(valV * valV);
+                e = `Rappel : Le carré (${v}²) c'est le nombre multiplié par lui-même.\nIci ${v}=${valV}, donc on calcule :\n${valV} × ${valV} = ${correct}.`;
+                wrong.add(String(valV * 2));
+                wrong.add(String(valV + 2));
+            } else {
+                q = `Si ${v} = ${valV}, combien vaut son double (2${v}) ?`;
+                correct = String(valV * 2);
+                e = `Rappel : Le double (2${v}) c'est le nombre multiplié par 2.\nIci ${v}=${valV}, donc on calcule :\n2 × ${valV} = ${correct}.`;
+                wrong.add(String(valV * valV));
+                wrong.add(String(valV + 2));
+            }
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 3 : PRIORITÉS & DÉTAILS DE SUBSTITUTION
+    // =================================================================
+    else {
+        let k = 0;
+        while (k === 0 || k === 1 || k === -1) k = rand(-12, 12);
+
+        const kStr = k > 0 ? String(k) : `(${k})`;
+
+        // Scénario A : (kx)²
+        const scenarioA = {
+            txt: `Le carré du produit de ${v} par ${kStr}`,
+            math: `(${k}${v})²`,
+            dev: `${k * k}${v}²`,
+            trap: [`${k}${v}²`, `${k}²${v}`, `${2 * k}${v}`],
+            expl: `Le mot "Carré" s'applique à tout le produit.\nOn écrit d'abord le produit ${k}${v}, puis on met des parenthèses pour le carré : (${k}${v})².`
+        };
+
+        // Scénario B : kx²
+        const scenarioB = {
+            txt: `Le produit de ${kStr} par le carré de ${v}`,
+            math: `${k}${v}²`,
+            trap: [`(${k}${v})²`, `${k * k}${v}²`, `2${k}${v}`],
+            expl: `Ici, le carré ne s'applique qu'au nombre ${v}.\nOn écrit ${v}², et on multiplie le tout par ${kStr} -> ${k}${v}².\nPas de parenthèses.`
+        };
+
+        // Scénario C : (x+k)²
+        const scenarioC = {
+            txt: `Le carré de la somme de ${v} et ${kStr}`,
+            math: `(${v} ${fmtSign(k)})²`,
+            trap: [`${v}² ${fmtSign(k)}`, `${v}² ${fmtSign(k * k)}`, `2${v} ${fmtSign(k)}`],
+            expl: `Le mot "Carré" s'applique à toute la somme.\nOn écrit la somme ${v}${fmtSign(k)}, et on protège avec des parenthèses : (${v}${fmtSign(k)})².`
+        };
+
+        // Scénario D : x²+k
+        const scenarioD = {
+            txt: `La somme de ${kStr} et du carré de ${v}`,
+            math: `${v}² ${fmtSign(k)}`,
+            trap: [`(${v} ${fmtSign(k)})²`, `2${v} ${fmtSign(k)}`, `(${v}${fmtSign(k)})`],
+            expl: `L'opération principale est l'addition.\nOn additionne ${kStr} avec le carré de ${v} (${v}²).\nCela donne : ${v}² ${fmtSign(k)}.`
+        };
+
+        const scenar = pick([scenarioA, scenarioB, scenarioC, scenarioD]);
+
+        if (Math.random() > 0.4) {
+            // Mode Traduction
+            q = `Quelle expression correspond à : \n"${scenar.txt}" ?`;
+            correct = scenar.math;
+            if (scenar === scenarioA && Math.random() > 0.5) correct = scenar.dev;
+
+            e = scenar.expl;
+            scenar.trap.forEach(t => wrong.add(t));
+        } else {
+            // Mode Substitution (Calcul numérique détaillé)
+            const valV = pick([2, 3, 5, 10]);
+
+            q = `Calculer "${scenar.txt}" pour ${v} = ${valV}.`;
+
+            let calcRes, detailSteps;
+
+            if (scenar === scenarioA) { // (kx)²
+                calcRes = Math.pow(k * valV, 2);
+                detailSteps = `1. On remplace : (${k} × ${valV})²\n2. On calcule la parenthèse : (${k * valV})²\n3. On met au carré : ${calcRes}`;
+            }
+            else if (scenar === scenarioB) { // kx²
+                calcRes = k * Math.pow(valV, 2);
+                detailSteps = `1. On remplace : ${k} × ${valV}²\n2. Priorité au carré : ${k} × ${Math.pow(valV, 2)}\n3. On multiplie : ${calcRes}`;
+            }
+            else if (scenar === scenarioC) { // (x+k)²
+                const sum = valV + k;
+                calcRes = Math.pow(sum, 2);
+                detailSteps = `1. On remplace : (${valV} ${fmtSign(k)})²\n2. On calcule la parenthèse : (${sum})²\n3. On met au carré : ${calcRes}`;
+            }
+            else { // x²+k
+                calcRes = Math.pow(valV, 2) + k;
+                detailSteps = `1. On remplace : ${valV}² ${fmtSign(k)}\n2. Priorité au carré : ${Math.pow(valV, 2)} ${fmtSign(k)}\n3. On additionne : ${calcRes}`;
+            }
+
+            correct = String(calcRes);
+            e = `${scenar.expl}\n\n--- DÉTAIL DU CALCUL ---\n${detailSteps}`;
+
+            // Génération des leurres pour ce calcul spécifique
+            if (scenar === scenarioA) { wrong.add(String(k * Math.pow(valV, 2))); wrong.add(String(2 * k * valV)); }
+            else if (scenar === scenarioB) { wrong.add(String(Math.pow(k * valV, 2))); }
+            else if (scenar === scenarioC) { wrong.add(String(Math.pow(valV, 2) + k)); }
+            else { wrong.add(String(Math.pow(valV + k, 2))); }
+
+            wrong.add(String(calcRes + 10));
+            wrong.add(String(calcRes - k));
+        }
+    }
+
+    // --- FINALISATION ---
+    let wrongArray = Array.from(wrong);
+    while (wrongArray.length < 3) {
+        if (typeof correct === 'string' && correct.includes('n')) wrongArray.push(`${v} + ${rand(10, 99)}`);
+        else wrongArray.push(String(parseInt(correct || 0) + rand(1, 10)));
+    }
+
+    return { q, o: [correct, ...wrongArray], c: 0, e };
+};
+
+
+
+// --- AUTO 11 - SIMPLIFIER LITTÉRAL (VERSION PROPRE SANS ÉTOILES) ---
+export const generateSimplifyExpressionQuestion = (config) => {
+    const lvl = config.level || 1;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // Génère un entier relatif non nul
+    const randNz = (limit) => {
+        let n = 0;
+        while (n === 0) n = rand(-limit, limit);
+        return n;
+    };
+
+    // --- UTILITAIRES DE FORMATAGE ---
+    const fmtSign = (n) => n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
+
+    // Affiche un coefficient proprement (ex: 1x -> x, -1x -> -x)
+    const fmtCoef = (n, variable) => {
+        if (n === 0) return "0";
+        if (n === 1) return variable;
+        if (n === -1) return `-${variable}`;
+        return `${n}${variable}`;
+    };
+
+    // Affiche le début d'une expression
+    const fmtStart = (n, variable) => {
+        if (n === 1) return variable;
+        if (n === -1) return `-${variable}`;
+        return `${n}${variable}`;
+    };
+
+    const v = pick(["x", "y", "a", "t", "n", "b"]);
+
+    let q, correct, e;
+    let wrong = new Set();
+
+    // =================================================================
+    // NIVEAU 1 : BASES & CONVENTIONS
+    // =================================================================
+    if (lvl === 1) {
+        const mode = pick(["suppression_mul", "identite", "addition_simple"]);
+
+        if (mode === "suppression_mul") {
+            const a = rand(2, 9);
+            const isOrderDirect = Math.random() > 0.5;
+
+            if (isOrderDirect) {
+                q = `Simplifier : ${a} × ${v}`;
+                correct = `${a}${v}`;
+                e = `Convention : On supprime le signe "×" et on colle le nombre au début.\n${a} × ${v} s'écrit ${a}${v}.`;
+            } else {
+                q = `Simplifier : ${v} × ${a}`;
+                correct = `${a}${v}`;
+                e = `Convention : Le nombre se place toujours DEVANT la lettre.\nOn remet dans l'ordre : ${v} × ${a} = ${a}${v}.`;
+            }
+            wrong.add(`${v}${a}`);
+            wrong.add(`${a} + ${v}`);
+        }
+        else if (mode === "identite") {
+            const sub = pick(["un", "zero", "carre"]);
+            if (sub === "un") {
+                q = `Simplifier : 1 × ${v}`;
+                correct = `${v}`;
+                e = `Multiplier par 1 est neutre.\n"Une fois ${v}", c'est juste "${v}".\n(Écrire 1${v} est correct mais lourd, on préfère ${v}).`;
+                wrong.add(`1${v}`); wrong.add(`1`);
+            } else if (sub === "zero") {
+                q = `Simplifier : 0 × ${v}`;
+                correct = `0`;
+                e = `Zéro fois n'importe quoi donne toujours ZÉRO.\n0 × ${v} = 0.`;
+                wrong.add(`${v}`); wrong.add(`0${v}`);
+            } else {
+                q = `Simplifier : ${v} × ${v}`;
+                correct = `${v}²`;
+                e = `Un nombre multiplié par lui-même est au CARRÉ.\n${v} × ${v} = ${v}².`;
+                wrong.add(`2${v}`);
+            }
+        }
+        else {
+            const a = rand(2, 6);
+            const b = rand(2, 6);
+            q = `Réduire : ${a}${v} + ${b}${v}`;
+            correct = `${a + b}${v}`;
+            e = `On additionne les coefficients : ${a} + ${b} = ${a + b}.\nCela donne ${a + b}${v}.`;
+            wrong.add(`${a + b}${v}²`);
+            wrong.add(`${a * b}${v}`);
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 2 : RELATIFS (ADDITIONS & PRODUITS SIMPLES)
+    // =================================================================
+    else if (lvl === 2) {
+        const mode = Math.random() > 0.4 ? "reduction_relatifs" : "produit_relatif";
+
+        if (mode === "reduction_relatifs") {
+            const a = randNz(9);
+            const b = randNz(9);
+            if (a + b === 0) b += 1; // Évite résultat 0 pour l'instant
+
+            q = `Réduire : ${fmtStart(a, v)} ${fmtSign(b)}${v}`;
+
+            const res = a + b;
+            correct = fmtStart(res, v);
+
+            e = `On regroupe les termes en ${v}.\nCalcul des coefficients : ${a} ${b >= 0 ? '+ ' + b : b}.\n\n`;
+
+            if (a > 0 && b < 0) e += `C'est une soustraction : ${a} - ${Math.abs(b)} = ${res}.`;
+            else if (a < 0 && b > 0) e += `On part de -${Math.abs(a)} et on remonte de ${b}.`;
+            else if (a < 0 && b < 0) e += `On additionne deux nombres négatifs, le résultat reste NÉGATIF.`;
+            else e += `${a} + ${b} = ${res}.`;
+
+            e += `\nRésultat final : ${correct}.`;
+
+            wrong.add(`${res}${v}²`);
+            wrong.add(`${a * b}${v}`);
+            wrong.add(fmtStart(a - b, v));
+        }
+        else {
+            // Produit
+            const a = randNz(8);
+            const b = randNz(8);
+            if (a > 0 && b > 0) b = -b; // Force un négatif
+
+            if (Math.random() > 0.5) {
+                const bStr = b < 0 ? `(${fmtCoef(b, v)})` : fmtCoef(b, v);
+                q = `Simplifier : ${a} × ${bStr}`;
+            } else {
+                const bStr = b < 0 ? `(${b})` : b;
+                q = `Simplifier : ${fmtCoef(a, v)} × ${bStr}`;
+            }
+
+            const resCoef = a * b;
+            correct = fmtCoef(resCoef, v);
+
+            e = `C'est une MULTIPLICATION.\n1. Règle des signes : ${a < 0 ? 'Négatif' : 'Positif'} × ${b < 0 ? 'Négatif' : 'Positif'} donne ${resCoef < 0 ? 'NÉGATIF' : 'POSITIF'}.\n2. Calcul : ${a} × ${b} = ${resCoef}.\n\nRésultat : ${correct}.`;
+
+            wrong.add(fmtCoef(Math.abs(resCoef), v));
+            wrong.add(fmtCoef(a + b, v));
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 3 : RELATIFS COMPLEXES & CARRÉS
+    // =================================================================
+    else {
+        const mode = pick(["produit_xx_relatif", "reduction_carres_relatif", "distributivite_simple"]);
+
+        if (mode === "produit_xx_relatif") {
+            const a = randNz(9);
+            const b = randNz(9);
+
+            const bStr = b < 0 ? `(${fmtCoef(b, v)})` : fmtCoef(b, v);
+            q = `Simplifier : ${fmtCoef(a, v)} × ${bStr}`;
+
+            const res = a * b;
+            correct = `${res}${v}²`;
+            if (res === -1) correct = `-${v}²`;
+            if (res === 1) correct = `${v}²`;
+
+            e = `Multiplication de deux termes en ${v} :\n1. Signes : ${a} × ${b} = ${res}.\n2. Lettres : ${v} × ${v} = ${v}² (au carré).\n\nRésultat : ${correct}.`;
+
+            wrong.add(`${Math.abs(res)}${v}²`);
+            wrong.add(`${res}${v}`);
+            wrong.add(`${a + b}${v}²`);
+        }
+        else if (mode === "reduction_carres_relatif") {
+            const a = randNz(9);
+            const b = randNz(9);
+            const c = randNz(9);
+            const d = randNz(9);
+
+            q = `Réduire : ${fmtStart(a, v)}² ${fmtSign(c)}${v} ${fmtSign(b)}${v}² ${fmtSign(d)}${v}`;
+
+            const resCarre = a + b;
+            const resX = c + d;
+
+            let partCarre = "";
+            if (resCarre !== 0) {
+                if (resCarre === 1) partCarre = `${v}²`;
+                else if (resCarre === -1) partCarre = `-${v}²`;
+                else partCarre = `${resCarre}${v}²`;
+            }
+
+            let partX = "";
+            if (resX !== 0) {
+                if (partCarre !== "") {
+                    partX = ` ${fmtSign(resX)}${v}`;
+                    partX = partX.replace("+ 1" + v, "+ " + v).replace("- 1" + v, "- " + v);
+                } else {
+                    partX = fmtStart(resX, v);
+                }
+            }
+
+            correct = (partCarre + partX).trim();
+            if (correct === "") correct = "0";
+
+            e = `On regroupe par famille :\n\n1. Les Carrés (${v}²) :\n   ${a} ${b >= 0 ? '+ ' + b : b} = ${resCarre} -> ${resCarre === 0 ? '0' : resCarre + v + '²'}\n\n2. Les simples (${v}) :\n   ${c} ${d >= 0 ? '+ ' + d : d} = ${resX} -> ${resX === 0 ? '0' : resX + v}\n\nOn écrit le tout côte à côte.`;
+
+            wrong.add(`${resCarre + resX}${v}²`);
+            wrong.add(`${resCarre}${v}² + ${resX}`);
+        }
+        else {
+            const k = randNz(5) * (Math.random() > 0.5 ? 1 : -1);
+            const a = randNz(5);
+            const b = randNz(9);
+
+            q = `Développer : ${k}(${fmtStart(a, v)} ${fmtSign(b)})`;
+
+            const resA = k * a;
+            const resB = k * b;
+
+            correct = `${fmtStart(resA, v)} ${fmtSign(resB)}`;
+
+            e = `On distribue le ${k} sur chaque terme :\n\n1. ${k} × ${a}${v} = ${resA}${v}\n2. ${k} × (${b}) = ${resB}\n\nRésultat : ${correct}`;
+
+            wrong.add(`${fmtStart(resA, v)} ${fmtSign(b)}`);
+            wrong.add(`${fmtStart(k + a, v)} ${fmtSign(k + b)}`);
+            wrong.add(`${fmtStart(Math.abs(resA), v)} ${fmtSign(Math.abs(resB))}`);
+        }
+    }
+
+    let wrongArray = Array.from(wrong);
+    while (wrongArray.length < 3) {
+        wrongArray.push(`${rand(-10, 10)}${v}`);
+    }
+
+    return { q, o: [correct, ...wrongArray], c: 0, e };
+};
+
+
+
+
+
+
+
+
+
+
+
 // Utilitaire pour un entier aléatoire entre min et max (inclus)
 const randint = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
