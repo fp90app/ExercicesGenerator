@@ -13,7 +13,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "auto_bloc_1",
                         // L'image contenant les questions 1 à 5
-                        image: "public/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 2.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_2.webp",
                         questions: [
                             {
                                 id: "q1",
@@ -66,7 +66,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "auto_bloc_2",
                         // L'image contenant les questions 6 à 9
-                        image: "/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 3.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_3.webp",
                         questions: [
                             {
                                 id: "q6",
@@ -126,7 +126,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "exo1_stat",
                         title: "Exercice 1 : Gaspillage Alimentaire",
-                        image: "/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 4.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_4.webp",
                         questions: [
                             {
                                 id: "e1_q1",
@@ -160,7 +160,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "exo2_algo",
                         title: "Exercice 2 : Programme de calcul",
-                        image: "/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 5.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_5.webp",
                         questions: [
                             {
                                 id: "e2_q1",
@@ -186,7 +186,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "exo3_fonctions",
                         title: "Exercice 3 : Fonctions",
-                        image: "/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 6.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_6.webp",
                         questions: [
                             {
                                 id: "e3_q1",
@@ -221,7 +221,7 @@ export const SUJET_2026_0A = [
                     {
                         id: "exo4_geo",
                         title: "Exercice 4 : Géométrie",
-                        image: "/assets/brevet/sujet0A/DNB 2026 - Sujet 0A - 7.webp",
+                        image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_7.webp",
                         questions: [
                             {
                                 id: "e4_q1b",
