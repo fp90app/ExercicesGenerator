@@ -2268,6 +2268,255 @@ export const generateDevelopFactorizeQuestion = (config) => {
 
 
 
+// --- AUTO - FACTORISATIONS k(a+b) - VERSION PÉDAGOGIQUE CORRIGÉE ---
+export const generateFactoriseQuestion = (config) => {
+    const lvl = config.level || 1;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // Génère un entier relatif non nul
+    const randNz = (limit) => {
+        let n = 0;
+        while (n === 0) n = rand(-limit, limit);
+        return n;
+    };
+
+    // PGCD pour garantir la factorisation maximale
+    const pgcd = (a, b) => {
+        a = Math.abs(a);
+        b = Math.abs(b);
+        return b === 0 ? a : pgcd(b, a % b);
+    };
+
+    // --- UTILITAIRES DE FORMATAGE ---
+    const v = pick(["x", "y", "a", "t"]); // Variable dynamique
+
+    // Affiche "+ 3" ou "- 3"
+    const fmtSign = (n) => n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
+
+    // Pour l'affichage dans l'explication : met des parenthèses si négatif dans une multiplication
+    const fmtMult = (n) => n < 0 ? `(${n})` : n;
+
+    // COEFF PROPRE : Transforme "1t" en "t", "-1t" en "-t", "0t" en "0"
+    const fmtCoeff = (n, suffix = "") => {
+        if (n === 0) return "0";
+        if (n === 1) return suffix;
+        if (n === -1) return `-${suffix}`;
+        return `${n}${suffix}`;
+    };
+
+    // Fonction pour colorer le facteur commun
+    const h = (text) => `<span class="text-rose-500 font-black text-xl">${text}</span>`;
+
+    let q, correct, e;
+    let wrong = new Set();
+    let detailedFeedback = {};
+
+    const addWrong = (option, feedbackMsg) => {
+        wrong.add(option);
+        if (feedbackMsg) detailedFeedback[option] = feedbackMsg;
+    };
+
+    // =================================================================
+    // NIVEAU 1 : INITIATION VISUELLE
+    // Énoncé explicite (4 × a + 4 × 3) pour bien voir le facteur
+    // =================================================================
+    if (lvl === 1) {
+        const k = rand(2, 9); // Facteur commun
+        const b = rand(2, 9); // Deuxième nombre (le premier terme est la variable)
+
+        const opStr = Math.random() > 0.5 ? "+" : "-";
+
+        // Énoncé : 5 × y + 5 × 3
+        q = `Factoriser : ${k} × ${v} ${opStr} ${k} × ${b}`;
+
+        correct = `${k}(${v} ${opStr} ${b})`;
+
+        // Explication détaillée (style récupéré de la bonne version)
+        e = `Le facteur commun est ${h(k)}.\n`;
+        e += `On regroupe ce qui est multiplié par ${h(k)} :\n\n`;
+        e += `${h(k)} × ${v} ${opStr} ${h(k)} × ${b}\n`;
+        e += `= ${h(k)} × (${v} ${opStr} ${b})\n`; // Étape intermédiaire importante
+        e += `= ${h(k)}(${v} ${opStr} ${b})`;
+
+        // Pièges
+        const trapUnsimplified = `${k} × (${v} ${opStr} ${b})`;
+        addWrong(trapUnsimplified, "C'est juste, mais enlève le signe × devant la parenthèse pour simplifier l'écriture.");
+        addWrong(`${v}(${k} ${opStr} ${b})`); // Mauvais facteur
+        addWrong(`${k}(${v} ${opStr === '+' ? '-' : '+'} ${b})`); // Erreur signe
+    }
+
+    // =================================================================
+    // NIVEAU 2 : INTERMÉDIAIRE (Variable simple OU Nombre PGCD)
+    // On calcule l'expression (ex: 12x + 8)
+    // =================================================================
+    else if (lvl === 2) {
+        const mode = Math.random() > 0.5 ? "variable_simple" : "pgcd_nombre";
+
+        if (mode === "variable_simple") {
+            // Ex: x² + 5x -> x(x + 5)
+            const b = randNz(9);
+
+            // fmtCoeff(1, v+"²") donne x² ou t²
+            q = `Factoriser au maximum : ${v}² ${fmtSign(b)}${v}`;
+
+            correct = `${v}(${v} ${fmtSign(b)})`;
+
+            e = `Le facteur commun est la lettre ${h(v)}.\n\n`;
+            e += `${v}² ${fmtSign(b)}${v}\n`;
+            e += `= ${h(v)} × ${v} ${b > 0 ? '+' : '-'} ${Math.abs(b)} × ${h(v)}\n`;
+            e += `= ${h(v)}(${v} ${fmtSign(b)})`;
+
+            addWrong(`${v}(${v} ${fmtSign(b * 2)})`);
+            addWrong(`${v}(1 ${fmtSign(b)})`);
+        }
+        else {
+            // Ex: 12x + 8 -> 4(3x + 2)
+            const k = pick([2, 3, 4, 5, 6, 8, 10]); // Facteur commun
+            let a = rand(2, 5);
+            let b = randNz(5);
+
+            // On s'assure que k est le facteur MAXIMAL (a et b premiers entre eux)
+            const div = pgcd(a, b);
+            a = a / div;
+            b = b / div;
+
+            const term1 = k * a;
+            const term2 = k * b;
+
+            q = `Factoriser au maximum : ${term1}${v} ${fmtSign(term2)}`;
+            correct = `${k}(${fmtCoeff(a, v)} ${fmtSign(b)})`;
+
+            e = `Le plus grand diviseur commun à ${term1} et ${Math.abs(term2)} est ${h(k)}.\n\n`;
+            e += `${term1}${v} ${fmtSign(term2)}\n`;
+            e += `= ${h(k)} × ${a}${v} ${b > 0 ? '+' : '-'} ${h(k)} × ${Math.abs(b)}\n`;
+            e += `= ${h(k)}(${fmtCoeff(a, v)} ${fmtSign(b)})`;
+
+            // Piège : Factorisation partielle
+            if (k % 2 === 0 && k > 2) {
+                const partialK = k / 2;
+                const partialA = a * 2;
+                const partialB = b * 2;
+                addWrong(`${partialK}(${fmtCoeff(partialA, v)} ${fmtSign(partialB)})`, "Ce n'est pas faux, mais ce n'est pas le maximum ! Tu peux encore factoriser par 2.");
+            }
+            addWrong(`${term1}(${v} ${fmtSign(b)})`);
+            addWrong(`${k}(${fmtCoeff(a, v)} ${fmtSign(b + 1)})`);
+        }
+    }
+
+    // =================================================================
+    // NIVEAU 3 : EXPERT (Facteur 4x, Problèmes de signes)
+    // CORRECTION : "1t" -> "t", variable dynamique, et explications rétablies
+    // =================================================================
+    else {
+        const mode = Math.random() > 0.5 ? "total_factor" : "negative";
+
+        if (mode === "total_factor") {
+            // 1. Contenu de la parenthèse (ex: 2x + 3)
+            // On veut s'assurer qu'ils sont premiers entre eux pour que la factorisation soit totale
+            let remCoeff = rand(1, 4); // coeff devant la variable (ex: 2)
+            let remConst = randNz(5);  // constante (ex: 3)
+
+            const div = pgcd(remCoeff, remConst);
+            remCoeff = remCoeff / div;
+            remConst = remConst / div;
+
+            // 2. Facteur commun (ex: 4x)
+            const kNum = rand(2, 6);
+            const factorCommon = `${fmtCoeff(kNum, v)}`; // "4x" ou "2t" (jamais "1t" grâce à rand 2+)
+
+            // 3. Construction de l'énoncé
+            // (4x * 2x) + (4x * 3) = 8x² + 12x
+            const term1 = kNum * remCoeff;
+            const term2 = kNum * remConst;
+
+            // Énoncé : 8t² + 12t
+            q = `Factoriser au maximum : ${fmtCoeff(term1, v)}² ${fmtSign(term2)}${v}`;
+
+            // Réponse correcte propre (pas de 1x)
+            // Ex: 4x(2x + 3)
+            const inside = `${fmtCoeff(remCoeff, v)} ${fmtSign(remConst)}`;
+            correct = `${factorCommon}(${inside})`;
+
+            // Explication détaillée (RÉTABLIE)
+            e = `On cherche le facteur commun maximal :\n`;
+            e += `- Nombres : PGCD de ${term1} et ${Math.abs(term2)} est ${kNum}.\n`;
+            e += `- Lettres : ${v} est commun.\n`;
+            e += `On factorise donc par ${h(factorCommon)}.\n\n`;
+
+            // Décomposition visuelle
+            e += `${fmtCoeff(term1, v)}² ${fmtSign(term2)}${v}\n`;
+            // Ligne de décomposition : 4x * 2x + 4x * 3
+            e += `= ${h(factorCommon)} × ${fmtCoeff(remCoeff, v)} ${remConst > 0 ? '+' : '-'} ${h(factorCommon)} × ${Math.abs(remConst)}\n`;
+            e += `= ${h(factorCommon)}(${inside})`;
+
+            // --- PIÈGES CORRIGÉS ---
+
+            // 1. Oubli du nombre (factorise juste par x) -> x(8x + 12)
+            addWrong(`${v}(${fmtCoeff(term1, v)} ${fmtSign(term2)})`, "Incomplet : tu as oublié de factoriser le nombre !");
+
+            // 2. Oubli de la lettre (factorise juste par 4) -> 4(2x² + 3x)
+            // Attention au formatage ici : remCoeff*v²
+            // On veut afficher 4(2x² + 3x)
+            const badInsideNum = `${fmtCoeff(remCoeff, v)}² ${fmtSign(remConst)}${v}`;
+            addWrong(`${kNum}(${badInsideNum})`, `Incomplet : tu as oublié de factoriser la lettre (${v}) qui est partout !`);
+
+            // 3. Factorisation partielle (si k est pair)
+            if (kNum % 2 === 0) {
+                const halfK = kNum / 2;
+                const badFactor = fmtCoeff(halfK, v);
+                const badRemA = remCoeff * 2;
+                const badRemB = remConst * 2;
+                const badInside = `${fmtCoeff(badRemA, v)} ${fmtSign(badRemB)}`;
+                addWrong(`${badFactor}(${badInside})`, `Pas mal, mais tu peux faire mieux. ${badFactor} n'est pas le facteur maximal.`);
+            } else {
+                // Piège random signe
+                addWrong(`${factorCommon}(${fmtCoeff(remCoeff, v)} ${fmtSign(-remConst)})`);
+            }
+        }
+        else {
+            // Mode Négatif : -5x - 15 -> -5(x + 3)
+            const k = -rand(2, 9);
+            const target = randNz(5);
+
+            const term1 = k;
+            const term2 = k * target;
+
+            // Formatage propre : -5x (et pas -51x si k=-51)
+            q = `Factoriser au maximum : ${fmtCoeff(term1, v)} ${fmtSign(term2)}`;
+
+            // Correct : -5(x + 3)
+            correct = `${k}(${v} ${fmtSign(target)})`;
+
+            e = `Le premier terme est négatif, on factorise par ${h(k)}.\n`;
+            e += `Attention aux signes lors de la division par un négatif !\n\n`;
+            // Décomposition pour les signes
+            e += `• ${fmtCoeff(term1, v)} = ${h(k)} × ${v}\n`;
+            e += `• ${term2 > 0 ? '+' : ''}${term2} = ${h(k)} × ${fmtMult(target)}\n\n`;
+            e += `Résultat : ${h(k)}(${v} ${fmtSign(target)})`;
+
+            // Erreur signe
+            addWrong(`${k}(${v} ${fmtSign(-target)})`, "Erreur de signe !");
+            // Oubli du moins
+            addWrong(`${Math.abs(k)}(-${v} ${fmtSign(target)})`);
+            // Recopie
+            addWrong(`${k}(${v} ${fmtSign(term2)})`);
+        }
+    }
+
+    // --- FINALISATION ---
+    // Remplissage si pas assez de choix
+    let wrongArray = Array.from(wrong);
+    while (wrongArray.length < 3) {
+        // Génère des faux crédibles proprement formattés
+        wrongArray.push(`${rand(2, 9)}(${v} ${fmtSign(randNz(5))})`);
+    }
+
+    return { q: q, o: [correct, ...wrongArray], c: 0, e: e, detailedFeedback: detailedFeedback };
+};
+
+
+
 
 
 
@@ -3160,5 +3409,242 @@ export const generateThalesData = (level = 1) => {
         targetKey,
         correct: correctAnswer,
         options: Array.from(options).sort((a, b) => a - b).slice(0, 4),
+    };
+};
+
+
+
+
+
+// PYTHAGORE //
+
+// src/utils/mathGenerators.js
+
+const round = (val, precision = 2) => {
+    return Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
+};
+
+const getRandomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// --- TRIPLETS NIVEAU 1 (Calcul Mental Strict) ---
+// On ne dépasse jamais 12 au carré (144).
+// Le triplet 5-12-13 est risqué pour le calcul de côté (13²=169), on le réserve pour l'hypoténuse ou on l'évite.
+// Ici on reste sur du très sûr : tables de 3, 4, 5, 6, 8, 10.
+const LEVEL1_TRIPLES = [
+    [3, 4, 5],   // Carrés : 9, 16, 25
+    [6, 8, 10]   // Carrés : 36, 64, 100
+];
+
+// --- TRIPLETS NIVEAU 2 (Intermédiaire) ---
+const LEVEL2_TRIPLES = [
+    [5, 12, 13], // 25 + 144 = 169
+    [9, 12, 15], // 81 + 144 = 225
+    [8, 15, 17], // 64 + 225 = 289
+    [12, 16, 20] // 144 + 256 = 400
+];
+
+export const generatePythagoreData = (level) => {
+    // 1. Géométrie
+    const labels = [['A', 'B', 'C'], ['I', 'J', 'K'], ['R', 'S', 'T'], ['E', 'F', 'G'], ['L', 'M', 'N'], ['X', 'Y', 'Z']];
+    const [A, B, C] = labels[Math.floor(Math.random() * labels.length)];
+    // Convention : Angle droit en A (premier point)
+
+    // Configs
+    const units = ['cm', 'm', 'mm', 'dm'];
+    let mainUnit = units[Math.floor(Math.random() * (level === 3 ? 4 : 2))];
+    let unitAB = mainUnit, unitAC = mainUnit, unitBC = mainUnit;
+    let conversionNeeded = false;
+    let qType = 'CALC';
+    let allowCalc = false;
+
+    let ab, ac, bc;
+    let targetType; // 'hypotenuse', 'side', 'formula_hyp', 'formula_side'
+    let targetKey;
+    let correct;
+    let choices = new Set(); // Set gère l'unicité, mais on sécurisera à la fin
+
+    // ========================================================================
+    // NIVEAU 1 : MENTAL STRICT (Max 12²) & COURS
+    // ========================================================================
+    if (level === 1) {
+        allowCalc = true; // Calculatrice autorisée (selon votre demande précédente "On inclut la calculatrice")
+
+        // 50% Question de Cours (Formules)
+        if (Math.random() < 0.5) {
+            qType = 'EQUALITY';
+
+            // Valeurs fictives pour l'affichage du triangle
+            ab = 3; ac = 4; bc = 5;
+
+            const askHypotenuse = Math.random() > 0.5;
+
+            if (askHypotenuse) {
+                // Formule de l'hypoténuse (Addition)
+                targetType = 'formula_hyp';
+                correct = `${B}${C}² = ${A}${B}² + ${A}${C}²`;
+
+                choices.add(correct);
+                choices.add(`${A}${B}² = ${A}${C}² + ${B}${C}²`); // Fausse hypoténuse
+                choices.add(`${B}${C}² = ${A}${B}² - ${A}${C}²`); // Erreur signe
+                choices.add(`${B}${C} = ${A}${B} + ${A}${C}`);    // Pas de carrés
+            } else {
+                // Formule d'un côté (Soustraction)
+                targetType = 'formula_side';
+                const targetSide = Math.random() > 0.5 ? `${A}${B}` : `${A}${C}`;
+                const otherSide = targetSide === `${A}${B}` ? `${A}${C}` : `${A}${B}`;
+
+                correct = `${targetSide}² = ${B}${C}² - ${otherSide}²`;
+
+                choices.add(correct);
+                choices.add(`${targetSide}² = ${B}${C}² + ${otherSide}²`); // Erreur signe (+)
+                choices.add(`${targetSide}² = ${otherSide}² - ${B}${C}²`); // Petit - Grand
+                choices.add(`${B}${C}² = ${targetSide}² - ${otherSide}²`); // Faux sens
+            }
+        }
+        else {
+            // 50% Calcul Mental Simple (Triplets [3,4,5] et [6,8,10] uniquement)
+            qType = 'CALC';
+            const triple = LEVEL1_TRIPLES[Math.floor(Math.random() * LEVEL1_TRIPLES.length)];
+            ab = triple[0]; ac = triple[1]; bc = triple[2];
+
+            targetType = Math.random() > 0.5 ? 'hypotenuse' : 'side';
+
+            if (targetType === 'hypotenuse') {
+                targetKey = B + C;
+                correct = bc;
+                choices.add(ab + ac); // Erreur addition simple
+                choices.add(ab * ab + ac * ac); // Oubli racine
+                choices.add(Math.abs(ac - ab));
+            } else {
+                targetKey = Math.random() > 0.5 ? A + B : A + C;
+                const knownSide = (targetKey === A + B) ? ac : ab;
+                correct = (targetKey === A + B) ? ab : ac;
+                choices.add(bc + knownSide);
+                choices.add(bc - knownSide);
+                choices.add(bc * bc + knownSide * knownSide); // Addition des carrés
+            }
+        }
+    }
+
+    // ========================================================================
+    // NIVEAU 2 : INTERMÉDIAIRE (SANS CALC)
+    // ========================================================================
+    else if (level === 2) {
+        allowCalc = false; // Interdite
+        qType = 'CALC';
+        targetType = Math.random() > 0.5 ? 'hypotenuse' : 'side';
+
+        const triple = LEVEL2_TRIPLES[Math.floor(Math.random() * LEVEL2_TRIPLES.length)];
+        ab = triple[0]; ac = triple[1]; bc = triple[2];
+
+        if (targetType === 'hypotenuse') targetKey = B + C;
+        else targetKey = Math.random() > 0.5 ? A + B : A + C;
+
+        correct = (targetKey === B + C) ? bc : (targetKey === A + B ? ab : ac);
+
+        choices.add(correct);
+        if (targetType === 'hypotenuse') {
+            choices.add(ab + ac);
+            choices.add(ab * ab + ac * ac);
+        } else {
+            const knownSide = (targetKey === A + B) ? ac : ab;
+            choices.add(bc - knownSide);
+            choices.add(bc * bc - knownSide * knownSide);
+        }
+    }
+
+    // ========================================================================
+    // NIVEAU 3 : EXPERT (AVEC CALC & UNITÉS)
+    // ========================================================================
+    else {
+        allowCalc = true;
+        qType = 'CALC';
+        targetType = Math.random() > 0.5 ? 'hypotenuse' : 'side';
+
+        if (Math.random() < 0.3) {
+            conversionNeeded = true;
+            mainUnit = 'cm';
+            // Valeurs qui tombent juste
+            let valInM = (getRandomInt(1, 30) / 10);
+            let valInCm = getRandomInt(10, 90);
+            ab = Math.round(valInM * 100);
+            unitAB = 'm';
+            ac = valInCm;
+            unitAC = 'cm';
+            bc = Math.sqrt(ab * ab + ac * ac);
+        } else {
+            ab = round(Math.random() * 15 + 3);
+            ac = round(Math.random() * 15 + 3);
+            bc = Math.sqrt(ab * ab + ac * ac);
+        }
+
+        const realBC = Math.sqrt(ab * ab + ac * ac);
+        const vals = { [A + B]: ab, [A + C]: ac, [B + C]: round(realBC) };
+
+        if (targetType === 'hypotenuse') targetKey = B + C;
+        else targetKey = Math.random() > 0.5 ? A + B : A + C;
+
+        correct = vals[targetKey];
+        choices.add(correct);
+
+        // Distracteurs proches
+        choices.add(round(correct * 1.1));
+        choices.add(round(correct * 0.9));
+        choices.add(round(correct + 10));
+    }
+
+    // --- SÉCURISATION DES CHOIX ---
+    // Remplissage si pas assez de choix
+    let attempts = 0;
+    while (choices.size < 4 && attempts < 50) {
+        attempts++;
+        if (qType === 'EQUALITY') break; // Les 4 formules sont déjà définies
+        let noise = Math.floor(Math.random() * 10) + 1;
+        let fake = round(correct + (Math.random() > 0.5 ? 1 : -1) * noise);
+        if (fake > 0 && fake !== correct) choices.add(fake);
+    }
+
+    // Conversion en tableau
+    let options = Array.from(choices);
+
+    // CRUCIAL : On vérifie que la bonne réponse est dedans. Si non (rare), on la force.
+    if (!options.includes(correct)) {
+        options[0] = correct;
+    }
+
+    // Mélange ou Tri
+    if (qType === 'CALC') {
+        options.sort((a, b) => a - b);
+    } else {
+        options.sort(() => Math.random() - 0.5);
+    }
+
+    // --- CONSTRUCTION DES DONNÉES D'AFFICHAGE ---
+    const given = {};
+    if (qType === 'CALC') {
+        const vals = { [A + B]: ab, [A + C]: ac, [B + C]: bc ? round(bc) : null };
+        const formatGiven = (val, unit) => {
+            if (conversionNeeded && unit === 'm' && mainUnit === 'cm') return val / 100;
+            return val;
+        };
+        if (targetKey !== A + B) given[A + B] = { val: formatGiven(vals[A + B], unitAB), unit: unitAB };
+        if (targetKey !== A + C) given[A + C] = { val: formatGiven(vals[A + C], unitAC), unit: unitAC };
+        if (targetKey !== B + C) given[B + C] = { val: formatGiven(vals[B + C], unitBC), unit: unitBC };
+    }
+    // Note: Pour 'EQUALITY', 'given' reste vide, mais 'vals' contient les coordonnées pour dessiner le triangle
+
+    return {
+        points: { Right: A, Top: B, Bottom: C },
+        vals: { [A + B]: ab, [A + C]: ac, [B + C]: bc ? round(bc) : null },
+        given,
+        targetKey,
+        targetType,
+        correct,
+        options,
+        level,
+        mainUnit,
+        conversionNeeded,
+        qType,
+        allowCalc
     };
 };

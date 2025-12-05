@@ -18,6 +18,8 @@ import {
     generateSimplifyExpressionQuestion,
     generateSubstitutionQuestion,
     generateDevelopFactorizeQuestion,
+    generateFactoriseQuestion,
+
 
 } from '../../utils/mathGenerators';
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
@@ -26,6 +28,7 @@ import ExerciceTableauValeursCourbe from './ExerciceTableauValeursCourbe';
 import ScratchScript from './ScratchBlock'; // Vérifie le chemin
 // Importe aussi le nouveau générateur
 import { generateAlgoQuestion } from '../../utils/mathGenerators';
+import ExercicePythagore from './ExercicePythagore';
 
 
 
@@ -39,8 +42,19 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
     const [feedback, setFeedback] = useState(null);
     const [showConfetti, setShowConfetti] = useState(false);
 
-
-
+    if (config.id === 'auto_25_pythagore') {
+        return (
+            <div className="min-h-screen bg-slate-50 relative pt-10">
+                <ExercicePythagore
+                    user={user}
+                    level={config.level} // Très important de passer le niveau
+                    onFinish={onFinish}
+                    onQuit={onBack}
+                    onSound={onSound}
+                />
+            </div>
+        );
+    }
     if (config.id === 'auto_26_thales') {
 
         return (
@@ -58,6 +72,7 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
             </div>
         );
     }
+
 
     if (config.id === 'auto_37_graph') {
 
@@ -141,6 +156,12 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                 const params = { level: config.level };
                 for (let i = 0; i < 10; i++) {
                     pool.push(generateDevelopFactorizeQuestion(params));
+                }
+            }
+            else if (config.id === 'auto_facto_simple') { // <--- L'ID DOIT MATCHER CELUI DANS data.js
+                const params = { level: config.level };
+                for (let i = 0; i < 10; i++) {
+                    pool.push(generateFactoriseQuestion(params));
                 }
             }
             // =========================================================
@@ -435,13 +456,15 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                         {/* --- FIN DU NOUVEAU BLOC BOUTONS --- */}
                         {feedback && (
                             <div className="mt-6 fade-in">
-                                <div className={`p-4 rounded-xl border shadow-sm mb-4 ${feedback.type === 'CORRECT'
-                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                    : 'bg-red-50 border-red-200 text-red-800'
-                                    } text-center font-bold text-lg`}
-                                    style={{ whiteSpace: 'pre-line' }}>
-                                    {feedback.msg}
-                                </div>
+                                <div
+                                    className={`p-4 rounded-xl border shadow-sm mb-4 ${feedback.type === 'CORRECT'
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                        : 'bg-red-50 border-red-200 text-red-800'
+                                        } text-center font-bold text-lg`}
+
+                                    // C'est cette ligne qui permet d'interpréter le <span> et la couleur
+                                    dangerouslySetInnerHTML={{ __html: feedback.msg.replace(/\n/g, '<br/>') }}
+                                />
                                 {/* VISUEL D'AIDE POUR LES AXES */}
                                 {q.showAxes && feedback.type === 'WRONG' && (
                                     <div className="mb-6 p-4 bg-white rounded-xl border border-slate-200 flex flex-col items-center">

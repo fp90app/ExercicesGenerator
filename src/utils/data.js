@@ -110,8 +110,15 @@ export const PROCEDURAL_EXOS = [
     "auto_11_simplifier_litteral",
     "auto_12_valeur_expression",
     "auto_13_dev_fact",
+    "auto_facto_simple",
+
+
+
+
+
     "auto_14_equations",
     "auto_15_droite_graduee",
+    "auto_25_pythagore",
     "auto_26_thales",
     "auto_37_graph",
     "auto_38_graph2",
