@@ -3,8 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST, TRAINING_MODULES, QUESTIONS_DB, PROCEDURAL_EXOS } from '../utils/data';
 
-// ... (DailyQuestsWidget, SurvivalView, Login sont inchangés, tu peux garder ceux que tu as ou reprendre ceux d'avant)
-// Pour gagner de la place ici, je te remets uniquement TablesView qui posait problème et StudentDashboard qui l'appelle.
+// --- UTILITAIRES COULEURS (Mis à jour pour matcher la vue Prof) ---
+const getLevelColor = (count) => {
+    // 3 réussites : Terminé (Vert foncé + Blanc + Ombre)
+    if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
+    // 2 réussites : Avancé (Vert moyen)
+    if (count === 2) return "bg-emerald-300 text-emerald-900 border-emerald-400";
+    // 1 réussite : Débuté (Vert très clair)
+    if (count === 1) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    // 0 réussite : Pas fait (Gris standard)
+    return "bg-slate-100 text-slate-300 border-slate-200 hover:border-indigo-300 hover:text-indigo-400";
+};
 
 // --- WIDGET QUÊTES ---
 export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
@@ -58,14 +67,10 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
 };
 
 // --- SURVIVAL VIEW ---
-// --- SURVIVAL VIEW (OPTIMISÉE : 0 LECTURE) ---
 export const SurvivalView = ({ user, onPlay, onBack }) => {
-
-    // Fonction simple pour récupérer l'historique local sans appeler Firebase
     const getMyHistory = (mode) => {
         let myRaw = user.data.survival_history?.[mode];
         let myArr = Array.isArray(myRaw) ? myRaw : (typeof myRaw === 'number' ? [myRaw] : []);
-
         return myArr
             .map(x => ({
                 val: (typeof x === 'object' && x.val !== undefined) ? x.val : x,
@@ -87,7 +92,6 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
             <h2 className="text-2xl font-black text-slate-800 mb-2">Mode Survie</h2>
             <LegendBox icon="trophy" color="red" text="Mode Défi : Battes ton propre record !" />
-
             <div className="grid md:grid-cols-3 gap-6">
                 {modeCards.map(m => (
                     <div key={m.id} className="flex flex-col gap-4">
@@ -96,11 +100,7 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
                             <h3 className="text-lg font-bold text-slate-800">{m.label}</h3>
                             <p className="text-slate-400 text-xs">{m.desc}</p>
                         </button>
-
-                        {/* Uniquement mon historique */}
                         <Leaderboard title="Mon Historique" data={getMyHistory(m.id)} unit="" />
-
-                        {/* Message discret pour remplacer le classement global */}
                         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
                             <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
                             <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
@@ -135,14 +135,11 @@ export const Login = ({ onLogin, onSound }) => {
     );
 };
 
-// =========================================================
-// 3. VUE TABLES (CORRIGÉE : AJOUT COLONNE DROITE)
-// =========================================================
+// --- VUE TABLES ---
 export const TablesView = ({ user, onPlay, onBack, onSound }) => {
     const [selected, setSelected] = useState([]);
     const [ops, setOps] = useState({ mul: true, div: true });
 
-    // Calcul de l'historique local uniquement (pas de useEffect, pas de fetch)
     const myHistory = (user.data.grand_slam_history || [])
         .map(h => ({
             val: parseFloat((typeof h === 'object' && h.val) ? h.val : h),
@@ -150,7 +147,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
             isUser: true
         }))
         .filter(x => !isNaN(x.val))
-        .sort((a, b) => a.val - b.val) // Tri par temps (petit = mieux)
+        .sort((a, b) => a.val - b.val)
         .slice(0, 5)
         .map(x => ({ ...x, val: x.val.toFixed(2) }));
 
@@ -161,8 +158,6 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
         <div className="fade-in pb-12">
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
             <div className="grid lg:grid-cols-3 gap-6">
-
-                {/* COLONNE GAUCHE : ENTRAINEMENT CIBLÉ (Inchangée) */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-1 lg:col-span-2">
                     <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="grid-four" className="text-amber-500" /> I. Entrainement Ciblé</h3>
                     <LegendBox icon="infinity" color="purple" text="20 points chaque jour pour les tables et les mélanges de divisions" />
@@ -204,7 +199,6 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                     </div>
                 </div>
 
-                {/* COLONNE DROITE : OPTIMISÉE */}
                 <div className="space-y-6 col-span-1">
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="shuffle" className="text-indigo-500" /> 2. Choix Libre</h3>
@@ -225,7 +219,6 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                         <button onClick={() => onPlay('CHRONO', null)} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black py-4 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 mb-6">LANCER LE CHRONO</button>
                         <div className="space-y-2">
                             <Leaderboard title="Mon Historique" data={myHistory} unit="s" />
-                            {/* Message discret pour remplacer le classement global */}
                             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
                                 <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
                                 <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
@@ -239,15 +232,11 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
 };
 
 
-
 // =========================================================
-// 4. STUDENT DASHBOARD (MAIN)
+// 4. STUDENT DASHBOARD (MAIN) - VERSION COMPACTE & ALIGNÉE
 // =========================================================
 export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveTab, loading, onAdmin, onSound, onResetTraining }) => {
-    const [legend, setLegend] = useState(false);
     const [showXPInfo, setShowXPInfo] = useState(false);
-
-
 
     const menuStyles = {
         amber: { container: "border-b-amber-100 hover:border-amber-500", iconBox: "bg-amber-100 text-amber-600", footer: "text-amber-600" },
@@ -259,122 +248,168 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     const MenuCard = ({ icon, title, desc, color, onClick, footer }) => {
         const style = menuStyles[color] || menuStyles.amber;
         return (
-            <button onClick={() => { onSound('CLICK'); onClick(); }} className={`p-6 rounded-2xl bg-white border-2 border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left group border-b-4 relative overflow-hidden w-full flex flex-col ${style.container}`}>
+            <button onClick={() => { onSound('CLICK'); onClick(); }} className={`p-5 rounded-2xl bg-white border-2 border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left group border-b-4 relative overflow-hidden w-full flex flex-col ${style.container}`}>
                 <div className="flex-1">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform ${style.iconBox}`}><Icon name={icon} /></div>
-                    <h3 className="text-xl font-bold text-slate-800 mb-1">{title}</h3>
-                    <p className="text-sm text-slate-400 mb-4">{desc}</p>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition-transform ${style.iconBox}`}><Icon name={icon} /></div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-0.5 leading-tight">{title}</h3>
+                    <p className="text-xs text-slate-400 mb-2 leading-snug">{desc}</p>
                 </div>
-                {footer && <div className={`mt-2 pt-3 border-t border-slate-100 text-xs font-bold flex items-center gap-1 w-full ${style.footer}`}><Icon name="trophy" className="text-lg shrink-0" /><div className="w-full">{typeof footer === 'function' ? footer() : footer}</div></div>}
+                {footer && <div className={`mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold flex items-center gap-1 w-full ${style.footer}`}><Icon name="trophy" className="text-sm shrink-0" /><div className="w-full truncate">{typeof footer === 'function' ? footer() : footer}</div></div>}
             </button>
         );
     };
 
-    const autoStyles = {
-        emerald: { bgHeader: "bg-emerald-50", textHeader: "text-emerald-800" },
-        blue: { bgHeader: "bg-blue-50", textHeader: "text-blue-800" },
-        purple: { bgHeader: "bg-purple-50", textHeader: "text-purple-800" },
-        amber: { bgHeader: "bg-amber-50", textHeader: "text-amber-800" },
-    };
-
     const getStatus = (id, lvl) => {
-        // Si l'utilisateur est un PROF ('teacher'), on ne vérifie pas la liste 'allowed'.
-        // On laisse passer tout le monde, sauf si l'exercice est vide/incomplet.
         if (user.role !== 'teacher' && user.allowed && !user.allowed.includes(id)) return 'LOCKED';
-
-        // ... (le reste de la fonction reste identique)
         const isProcedural = PROCEDURAL_EXOS.includes(id);
         const isStaticValid = QUESTIONS_DB[id] && QUESTIONS_DB[id][lvl] && QUESTIONS_DB[id][lvl].length >= 10;
-
         if (!isProcedural && !isStaticValid) return 'EMPTY';
         if (lvl === 1) return 'OPEN';
-
         const prev = user.data.training[id]?.[lvl - 1] || 0;
         return prev > 0 ? 'OPEN' : 'LOCKED';
     };
-    const getColor = (id, lvl) => {
-        const n = user.data.training[id]?.[lvl] || 0;
-        if (n >= 3) return "bg-emerald-600 border-emerald-700 text-white shadow-md";
-        if (n === 2) return "bg-emerald-300 border-emerald-400 text-emerald-900";
-        if (n === 1) return "bg-emerald-50 border-emerald-200 text-emerald-700";
-        return "bg-white border-slate-200 text-slate-500 hover:border-indigo-300";
-    };
+
     const handleClick = (id, lvl) => {
         onSound('CLICK');
         const status = getStatus(id, lvl);
         if (status === 'EMPTY') alert("En construction");
-        else if (status === 'LOCKED') alert(`🔒 Bloqué`);
+        else if (status === 'LOCKED') alert(`🔒 Finis d'abord le niveau ${lvl - 1} !`);
         else onPlay('TRAINING', id, lvl);
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-12">
+        <div className="min-h-screen bg-slate-50 pb-8 md:pb-12">
             {showXPInfo && <XPHelpModal onClose={() => setShowXPInfo(false)} />}
 
-            <header className="bg-white border-b border-slate-100 sticky top-0 z-20">
-                <div className="max-w-5xl mx-auto px-4 h-16 flex justify-between items-center">
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('HOME')}>
-                        <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">{user.data.nom[0]}</div>
-                        <div className="leading-none"><div className="font-bold">{user.data.nom}</div><div className="text-[10px] text-slate-400">{user.data.identifiant}</div></div>
+            <header className="bg-white border-b border-slate-100 sticky top-0 z-30">
+                <div className="max-w-5xl mx-auto px-4 h-14 md:h-16 flex justify-between items-center">
+                    <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => setActiveTab('HOME')}>
+                        <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">{user.data.nom[0]}</div>
+                        <div className="leading-none"><div className="font-bold text-sm md:text-base">{user.data.nom}</div><div className="text-[10px] text-slate-400">{user.data.identifiant}</div></div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {user.role === 'teacher' && <button onClick={onAdmin} className="bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 hover:bg-slate-700"><Icon name="crown" /> Espace profs</button>}
-                        <button onClick={() => { onSound('CLICK'); setShowXPInfo(true); }} className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-sm font-bold border border-amber-100 flex items-center gap-1 hover:bg-amber-100 hover:scale-105 transition-all cursor-pointer"><Icon name="star-fill" /> {user.data.xp}</button>
+                    <div className="flex items-center gap-2 md:gap-3">
+                        {user.role === 'teacher' && <button onClick={onAdmin} className="bg-slate-800 text-white w-8 h-8 md:w-auto md:px-3 md:py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-700"><Icon name="crown" /><span className="hidden md:inline">Profs</span></button>}
+                        <button onClick={() => { onSound('CLICK'); setShowXPInfo(true); }} className="bg-amber-50 text-amber-700 px-2 py-1 md:px-3 rounded-full text-xs md:text-sm font-bold border border-amber-100 flex items-center gap-1 hover:bg-amber-100 hover:scale-105 transition-all cursor-pointer"><Icon name="star-fill" /> {user.data.xp}</button>
                         <button onClick={onLogout} className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100"><Icon name="sign-out" /></button>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto p-4 py-8">
+            <main className="max-w-7xl mx-auto p-3 md:p-4 py-4 md:py-8">
                 {activeTab === 'HOME' && <SchoolHeader />}
                 {activeTab === 'HOME' && user.data.daily && <DailyQuestsWidget daily={user.data.daily} onPlay={onPlay} onGoToAuto={() => setActiveTab('AUTOMATISMES')} />}
 
                 {activeTab === 'HOME' && (
-                    <div className="grid md:grid-cols-2 gap-4 fade-in">
-                        <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Mon Record Chrono : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas encore de chrono"} />
-                        <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions travaillées" : "notion travaillée"; return count > 0 ? `${count} ${label}` : "Aucun exercice fait"; }} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 fade-in">
+                        <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Record : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas de chrono"} />
+                        <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions" : "notion"; return count > 0 ? `${count} ${label}` : "Aucun exercice"; }} />
                         <MenuCard icon="barbell" title="Entrainement" desc="Chapitres de cours." color="emerald" onClick={() => setActiveTab('TRAINING')} footer="Accès aux chapitres" />
-                        <MenuCard icon="fire" title="Survie" desc="Défis chronométrés." color="red" onClick={() => setActiveTab('SURVIVAL')} footer={() => { const h = user.data.survival_history || {}; const getBest = (k) => Math.max(0, ...(h[k]?.map(x => (typeof x === 'object' ? x.val : x)) || [])); const s1 = getBest('EXPLORATEUR'); const s2 = getBest('AVENTURIER'); const s3 = getBest('LEGENDE'); if (s1 === 0 && s2 === 0 && s3 === 0) return "Aucun record"; return (<div className="flex justify-between w-full text-[10px]"><span>Explorateur : <b>{s1}</b></span><span>Aventurier : <b>{s2}</b></span><span>Légende: <b>{s3}</b></span></div>); }} />
+                        <MenuCard icon="fire" title="Survie" desc="Défis chronométrés." color="red" onClick={() => setActiveTab('SURVIVAL')} footer={() => { const h = user.data.survival_history || {}; const getBest = (k) => Math.max(0, ...(h[k]?.map(x => (typeof x === 'object' ? x.val : x)) || [])); const s1 = getBest('EXPLORATEUR'); if (s1 === 0) return "Aucun record"; return `Record Expl. : ${s1}`; }} />
                     </div>
                 )}
 
                 {activeTab === 'TABLES' && <TablesView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} onSound={onSound} />}
 
                 {activeTab === 'AUTOMATISMES' && (
-                    <div className="fade-in space-y-6">
-                        <button onClick={() => setActiveTab('HOME')} className="mb-4 text-sm text-slate-400 flex items-center gap-1"><Icon name="arrow-left" /> Retour</button>
-                        {AUTOMATISMES_DATA.map((cat, i) => {
-                            const style = autoStyles[cat.color] || { bgHeader: "bg-slate-100", textHeader: "text-slate-800" };
-                            return (
-                                <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                                    <div className={`${style.bgHeader} px-4 py-2 font-bold ${style.textHeader} text-sm uppercase`}>{cat.title}</div>
-                                    <div className="p-3 space-y-2">
-                                        {cat.exos.map(exo => (
-                                            <div key={exo.id} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg group">
-                                                <span className={`text-sm font-bold ${(QUESTIONS_DB[exo.id] || PROCEDURAL_EXOS.includes(exo.id)) ? 'text-slate-900' : 'text-slate-300'}`}>{exo.title}</span>
-                                                <div className="flex items-center gap-3">
-                                                    {user.data.training && user.data.training[exo.id] && Object.keys(user.data.training[exo.id]).length > 0 && (
-                                                        <button onClick={(e) => { e.stopPropagation(); if (confirm("Remettre à zéro ?")) { onResetTraining(exo.id); onSound('CLICK'); } }} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1"><Icon name="arrow-counter-clockwise" className="text-lg" /></button>
-                                                    )}
-                                                    <div className="flex gap-1">
+                    <div className="fade-in space-y-4">
+                        <button onClick={() => setActiveTab('HOME')} className="mb-2 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            {AUTOMATISMES_DATA.map((cat, i) => (
+                                <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
+                                    {/* Header Compact */}
+                                    <div className={`bg-${cat.color}-50 px-3 py-2 border-b border-${cat.color}-100 flex justify-between items-center`}>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`p-1.5 rounded-lg bg-white text-${cat.color}-600 shadow-sm`}>
+                                                <Icon name="lightning" weight="fill" className="text-sm" />
+                                            </div>
+                                            <div>
+                                                <h3 className={`font-black text-${cat.color}-800 text-sm md:text-base leading-none`}>{cat.title.replace(/^[IVX]+\.\s*/, '')}</h3>
+                                            </div>
+                                        </div>
+                                        <span className={`text-[10px] font-bold text-${cat.color}-600 bg-white/50 px-2 py-0.5 rounded-full`}>{cat.exos.length}</span>
+                                    </div>
+
+                                    {/* Liste Exercices */}
+                                    <div className="bg-white">
+                                        {cat.exos.map(exo => {
+                                            const statusGlobal = getStatus(exo.id, 1);
+                                            const isLocked = statusGlobal === 'LOCKED' || statusGlobal === 'EMPTY';
+                                            const progress = user.data.training?.[exo.id] || {};
+                                            const hasProgress = progress && Object.keys(progress).length > 0;
+
+                                            // Classes communes pour l'alignement
+                                            const rowBase = "flex justify-between items-center px-2 py-1.5 md:px-3 md:py-2 border-b border-slate-100 last:border-0 min-h-[40px]";
+
+                                            if (isLocked) {
+                                                return (
+                                                    <div key={exo.id} className={`${rowBase} bg-slate-50/50 opacity-50`}>
+                                                        <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                            {/* Placeholder Icon Slot pour alignement */}
+                                                            <div className="w-5 flex justify-center shrink-0 text-slate-400"><Icon name="lock-key" size={12} /></div>
+                                                            <span className="text-xs font-bold text-slate-400 truncate">{exo.title}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div key={exo.id} className={`${rowBase} hover:bg-slate-50 group transition-colors`}>
+                                                    <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                                                        {/* Slot Icône Gauche (Alignement Garanti) */}
+                                                        <div className="w-5 flex justify-center shrink-0">
+                                                            {hasProgress ? (
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); if (confirm("Remettre à zéro ?")) { onResetTraining(exo.id); onSound('CLICK'); } }}
+                                                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                                    title="Réinitialiser"
+                                                                >
+                                                                    <Icon name="arrow-counter-clockwise" size={14} />
+                                                                </button>
+                                                            ) : (
+                                                                // Point discret pour marquer la ligne ou vide mais avec width
+                                                                <div className="w-1 h-1 rounded-full bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Titre */}
+                                                        <span className="text-xs md:text-sm font-bold text-slate-700 truncate leading-tight cursor-default" title={exo.title}>{exo.title}</span>
+                                                    </div>
+
+                                                    {/* Boutons Niveaux */}
+                                                    <div className="flex gap-1 shrink-0">
                                                         {[1, 2, 3].map(lvl => {
                                                             const st = getStatus(exo.id, lvl);
-                                                            const count = user.data.training[exo.id]?.[lvl] || 0;
+                                                            const isLvlLocked = st === 'LOCKED';
+                                                            const count = progress[lvl] || 0;
+                                                            const btnSize = "w-6 h-6 md:w-7 md:h-7 text-[10px] md:text-xs"; // Compact
+
+                                                            if (isLvlLocked) {
+                                                                return (
+                                                                    <div key={lvl} className={`${btnSize} rounded border bg-slate-50 border-slate-100 flex items-center justify-center text-slate-200 cursor-not-allowed`}>
+                                                                        <Icon name="lock-key" size={10} weight="fill" />
+                                                                    </div>
+                                                                );
+                                                            }
+
                                                             return (
-                                                                <button key={lvl} onClick={() => handleClick(exo.id, lvl)} className={`w-8 h-8 rounded border flex items-center justify-center text-sm font-bold transition-all active:scale-90 relative ${st === 'LOCKED' || st === 'EMPTY' ? 'bg-slate-100 text-slate-300' : getColor(exo.id, lvl)}`}>
-                                                                    {st === 'LOCKED' ? <Icon name="lock-key" /> : lvl}
-                                                                    {count >= 3 && <div className="check-badge"><Icon name="check" /></div>}
+                                                                <button
+                                                                    key={lvl}
+                                                                    onClick={(e) => { e.stopPropagation(); handleClick(exo.id, lvl); }}
+                                                                    className={`${btnSize} rounded border flex items-center justify-center font-bold transition-all active:scale-95 ${getLevelColor(count)}`}
+                                                                >
+                                                                    {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
                                                                 </button>
                                                             );
                                                         })}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            );
-                        })}
+                            ))}
+                        </div>
                     </div>
                 )}
 

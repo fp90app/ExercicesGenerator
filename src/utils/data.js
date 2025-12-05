@@ -2,74 +2,93 @@
 
 export const AUTOMATISMES_DATA = [
     {
-        title: "I. Nombres et Calculs",
+        title: "Nombres et Calculs",
         color: "indigo",
         exos: [
-
-            { id: "auto_1_ecriture_decimale_fractions", title: "1. Écriture décimale" },
-            { id: "auto_2_comparaison_calcul_decimaux", title: "2. Nombres décimaux - Calculs et comparaisons" },
-            { id: "auto_3_fractions_calc", title: "3. Calculs fractions" },
-            { id: "auto_4_fraction_nombre", title: "4. Fraction d'un nombre" },
-            { id: "auto_5_pourcentages", title: "5. Pourcentages simples" },
-            { id: "auto_6_formes_multiples", title: "6. Formes multiples" },
-            { id: "auto_7_ecriture_sci", title: "7. Notation scientifique" },
-            { id: "auto_8_carres_3eme", title: "8. Carrés parfaits" },
-            { id: "auto_9_divisibilite", title: "9. Divisibilité" },
-            { id: "auto_10_vocabulaire_ops", title: "10. Vocabulaire (double...)" },
-            { id: "auto_11_simplifier_litteral", title: "11. Simplifier (littéral)" },
-            { id: "auto_12_valeur_expression", title: "12. Substitution" },
-            { id: "auto_13_dev_fact", title: "13. Développer / Factoriser" },
-            { id: "auto_14_equations", title: "14. Équations simples" },
-            { id: "auto_15_droite_graduee", title: "15. Droite graduée" }
+            { id: "auto_1_ecriture_decimale_fractions", title: "Écriture décimale" },
+            { id: "auto_2_comparaison_calcul_decimaux", title: "Nombres décimaux - Calculs" },
+            { id: "auto_3_fractions_calc", title: "Calculs fractions" },
+            { id: "auto_4_fraction_nombre", title: "Fraction d'un nombre" },
+            { id: "auto_5_pourcentages", title: "Pourcentages simples" },
+            { id: "auto_6_formes_multiples", title: "Formes multiples" },
+            { id: "auto_7_ecriture_sci", title: "Notation scientifique" },
+            { id: "auto_8_carres_3eme", title: "Carrés parfaits" },
+            { id: "auto_9_divisibilite", title: "Divisibilité" },
+            { id: "auto_10_vocabulaire_ops", title: "Vocabulaire (double...)" },
+            // J'ai laissé la droite graduée ici, c'est plus logique qu'en calcul littéral
+            { id: "auto_15_droite_graduee", title: "Droite graduée" }
         ]
     },
     {
-        title: "II. Espace et Géométrie",
+        title: "Calcul Littéral",
+        color: "purple", // Nouvelle section violette
+        exos: [
+            { id: "auto_11_simplifier_litteral", title: "Simplifier (littéral)" },
+            { id: "auto_12_valeur_expression", title: "Substitution" },
+
+            // --- Cœur du calcul littéral ---
+            { id: "auto_13_dev_fact", title: "Développements k(a+b)" },
+            { id: "auto_facto_simple", title: "Factorisations k(a+b)" },
+            { id: "auto_dvlpt_double", title: "Développements doubles (a+b)(c+d)" },
+            { id: "auto_facto_complexe", title: "Factorisations complexes" },
+
+            // --- Identités Remarquables ---
+            { id: "auto_ir_3_dev", title: "IR (a+b)(a-b) : Développement" },
+            { id: "auto_ir_3_fact", title: "IR a²-b² : Factorisation" },
+            { id: "auto_ir_1_2_dev", title: "IR Carrés (a±b)² : Développement" },
+            { id: "auto_ir_1_2_fact", title: "IR Carrés a²±2ab+b² : Factorisation" },
+
+            // --- Équations ---
+            { id: "auto_14_equations", title: "Équations simples" },
+        ]
+    },
+    {
+        title: "Espace et Géométrie",
         color: "emerald",
         exos: [
-            { id: "auto_16_coordonnees", title: "16. Coordonnées" },
-            { id: "auto_17_codage_figures", title: "17. Figures & Codage" },
-            { id: "auto_18_angles_vocab", title: "18. Vocabulaire angles" },
-            { id: "auto_19_angles_triangle", title: "19. Angles du triangle" },
-            { id: "auto_20_conversions", title: "20. Conversions" },
-            { id: "auto_21_solides", title: "21. Reconnaître solides" },
-            { id: "auto_22_perimetres", title: "22. Périmètres" },
-            { id: "auto_23_aires", title: "23. Aires" },
-            { id: "auto_24_volumes", title: "24. Volumes" },
-            { id: "auto_25_pythagore", title: "25. Pythagore" },
-            { id: "auto_26_thales", title: "26. Thalès" },
-            { id: "auto_27_trigo", title: "27. Trigonométrie" },
-            { id: "auto_28_symetries", title: "28. Transformations" }
+            { id: "auto_16_coordonnees", title: "Coordonnées" },
+            { id: "auto_17_codage_figures", title: "Figures & Codage" },
+            { id: "auto_18_angles_vocab", title: "Vocabulaire angles" },
+            { id: "auto_19_angles_triangle", title: "Angles du triangle" },
+            { id: "auto_20_conversions", title: "Conversions" },
+            { id: "auto_21_solides", title: "Reconnaître solides" },
+            { id: "auto_22_perimetres", title: "Périmètres" },
+            { id: "auto_23_aires", title: "Aires" },
+            { id: "auto_24_volumes", title: "Volumes" },
+            { id: "auto_25_pythagore", title: "Pythagore" },
+            { id: "auto_26_thales", title: "Thalès" },
+            { id: "auto_27_trigo", title: "Trigonométrie" },
+            { id: "auto_28_symetries", title: "Transformations" }
         ]
     },
     {
-        title: "III. Organisation de Données",
+        title: "Organisation de Données",
         color: "amber",
         exos: [
-            { id: "auto_29_probabilites", title: "29. Probabilités" },
-            { id: "auto_30_frequence", title: "30. Fréquences" },
-            { id: "auto_31_moyenne", title: "31. Moyenne" },
-            { id: "auto_32_mediane", title: "32. Médiane" },
-            { id: "auto_33_lecture_graphique", title: "33. Lecture de données" }
+            { id: "auto_29_probabilites", title: "Probabilités" },
+            { id: "auto_30_frequence", title: "Fréquences" },
+            { id: "auto_31_moyenne", title: "Moyenne" },
+            { id: "auto_32_mediane", title: "Médiane" },
+            { id: "auto_33_lecture_graphique", title: "Lecture de données" }
         ]
     },
     {
-        title: "IV. Proportionnalité et Fonctions",
+        title: "Proportionnalité et Fonctions",
         color: "rose",
         exos: [
-            { id: "auto_34_reconnaitre_prop", title: "34. Reconnaître Propor." },
-            { id: "auto_35_calcul_prop", title: "35. Calculs Propor." },
-            { id: "auto_36_pourcentages_evol", title: "36. Évolutions (%)" },
-            { id: "auto_37_graph", title: "37. Images/antécédents sur graphique" },
-            { id: "auto_38_graph2", title: "38. Tableau de valeurs et graphiques" }
+            { id: "auto_34_reconnaitre_prop", title: "Reconnaître Propor." },
+            { id: "auto_35_calcul_prop", title: "Calculs Propor." },
+            { id: "auto_36_pourcentages_evol", title: "Évolutions (%)" },
+            { id: "auto_37_graph", title: "Images/antécédents sur graphique" },
+            { id: "auto_38_graph2", title: "Tableau de valeurs et graphiques" }
         ]
     },
     {
-        title: "V. Informatique",
-        color: "cyan", // Nouvelle couleur pour distinguer
+        title: "Informatique",
+        color: "cyan",
         exos: [
-            { id: "auto_39_algo", title: "39. Algorithmique" },
-            { id: "auto_40_tableur", title: "40. Tableur" }
+            { id: "auto_39_algo", title: "Algorithmique" },
+            { id: "auto_40_tableur", title: "Tableur" }
         ]
     }
 ];
@@ -93,43 +112,29 @@ export const PROCEDURAL_EXOS = [
     "auto_13_dev_fact",
     "auto_14_equations",
     "auto_15_droite_graduee",
-
-
     "auto_26_thales",
-
     "auto_37_graph",
     "auto_38_graph2",
     "auto_39_algo",
     "auto_40_tableur",
-
-
-
 ];
-
-
-
 
 export const QUESTIONS_TABLES = {};
 export const QUESTIONS_DIVISIONS = {};
 export const TABLES_LIST = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => ({ id: n, title: `Table de ${n}` }));
 
-
 // Initialisation et Remplissage immédiat
 [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach(t => {
     QUESTIONS_TABLES[t] = [];
-    // On commence à 2 pour éviter x0 et x1 comme demandé
     for (let i = 2; i <= 11; i++) {
         const res = t * i;
-        // Génération de mauvaises réponses intelligentes
         let w = [
-            res + t,          // Erreur de +1 fois
-            res - t > 0 ? res - t : res + 2 * t, // Erreur de -1 fois
-            res + (Math.random() > 0.5 ? 1 : -1) // Erreur de +/- 1 (proximité)
+            res + t,
+            res - t > 0 ? res - t : res + 2 * t,
+            res + (Math.random() > 0.5 ? 1 : -1)
         ];
-
-        // On s'assure que les mauvaises réponses sont uniques et différentes de la bonne
         w = [...new Set(w)].filter(x => x !== res);
-        while (w.length < 3) w.push(res + 10 + w.length); // Fallback si pas assez de choix
+        while (w.length < 3) w.push(res + 10 + w.length);
 
         QUESTIONS_TABLES[t].push({
             q: `${t} × ${i} = ?`,
@@ -143,18 +148,13 @@ export const TABLES_LIST = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => ({ id: 
 // Remplissage des divisions
 [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach(t => {
     QUESTIONS_DIVISIONS[t] = [];
-    // i représente le résultat de la division (donc le multiplicateur original)
     for (let i = 2; i <= 11; i++) {
-        const total = t * i; // ex: 56
-        // Question : 56 ÷ 7 = ? (Réponse : 8)
-
-        // Mauvaises réponses
+        const total = t * i;
         let w = [
             i + 1,
             i - 1 > 1 ? i - 1 : i + 2,
-            Math.floor(total / (t - 1 > 1 ? t - 1 : t + 1)) // Une division proche mais fausse
+            Math.floor(total / (t - 1 > 1 ? t - 1 : t + 1))
         ];
-
         w = [...new Set(w)].filter(x => x !== i && x > 0);
         while (w.length < 3) w.push(i + 10 + w.length);
 
@@ -167,26 +167,17 @@ export const TABLES_LIST = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => ({ id: 
     }
 });
 
-// VÉRIFICATION CONSOLE (Pour être sûr que les tables sont chargées)
-console.log("Tables chargées :", QUESTIONS_TABLES);
-
-
-
-console.log("Divisions chargées :", QUESTIONS_DIVISIONS);
-
 export const LISTE_CLASSES = ["3A", "3B", "3C", "3D", "3E", "4A", "4B", "4C", "4D", "4E", "5A", "5B", "5C", "5D", "6A", "6B", "6C", "6D", "Sans classe"];
 
 // Données statiques de secours
 export const QUESTIONS_DB = {
     "auto_fractions": {
         1: [
-            // Tes 5 questions d'origine
             { q: "1/2 en décimal ?", o: ["0,5", "0,2", "1,2"], c: 0, e: "La moitié de 1." },
             { q: "1/4 en décimal ?", o: ["0,25", "0,4", "2,5"], c: 0, e: "0,25" },
             { q: "1/10 en décimal ?", o: ["0,1", "0,01", "10"], c: 0, e: "0,1" },
             { q: "3/4 en décimal ?", o: ["0,75", "3,4", "0,34"], c: 0, e: "0,75" },
             { q: "1/5 en décimal ?", o: ["0,2", "0,5", "1,5"], c: 0, e: "0,2" },
-            // Nouvelles questions ajoutées pour pouvoir gagner
             { q: "3/10 en décimal ?", o: ["0,3", "3,0", "0,03"], c: 0, e: "Trois dixièmes." },
             { q: "1/100 en décimal ?", o: ["0,01", "0,1", "100"], c: 0, e: "Un centième." },
             { q: "1/1 en entier ?", o: ["1", "0,1", "10"], c: 0, e: "Une unité complète." },
@@ -196,13 +187,11 @@ export const QUESTIONS_DB = {
             { q: "0,5 en fraction ?", o: ["1/2", "1/5", "5/10"], c: 0, e: "Un demi." }
         ],
         2: [
-            // Tes 5 questions d'origine
             { q: "1/2 en décimal ?", o: ["0,5", "0,2", "1,2"], c: 0, e: "La moitié de 1." },
             { q: "1/4 en décimal ?", o: ["0,25", "0,4", "2,5"], c: 0, e: "0,25" },
             { q: "1/10 en décimal ?", o: ["0,1", "0,01", "10"], c: 0, e: "0,1" },
             { q: "3/4 en décimal ?", o: ["0,75", "3,4", "0,34"], c: 0, e: "0,75" },
             { q: "1/5 en décimal ?", o: ["0,2", "0,5", "1,5"], c: 0, e: "0,2" },
-            // Nouvelles questions ajoutées pour pouvoir gagner
             { q: "3/10 en décimal ?", o: ["0,3", "3,0", "0,03"], c: 0, e: "Trois dixièmes." },
             { q: "1/100 en décimal ?", o: ["0,01", "0,1", "100"], c: 0, e: "Un centième." },
             { q: "1/1 en entier ?", o: ["1", "0,1", "10"], c: 0, e: "Une unité complète." },
@@ -211,15 +200,12 @@ export const QUESTIONS_DB = {
             { q: "1,5 en fraction ?", o: ["3/2", "1/5", "2/3"], c: 0, e: "Trois demis." },
             { q: "0,5 en fraction ?", o: ["1/2", "1/5", "5/10"], c: 0, e: "Un demi." }
         ],
-
         3: [
-            // Tes 5 questions d'origine
             { q: "1/2 en décimal ?", o: ["0,5", "0,2", "1,2"], c: 0, e: "La moitié de 1." },
             { q: "1/4 en décimal ?", o: ["0,25", "0,4", "2,5"], c: 0, e: "0,25" },
             { q: "1/10 en décimal ?", o: ["0,1", "0,01", "10"], c: 0, e: "0,1" },
             { q: "3/4 en décimal ?", o: ["0,75", "3,4", "0,34"], c: 0, e: "0,75" },
             { q: "1/5 en décimal ?", o: ["0,2", "0,5", "1,5"], c: 0, e: "0,2" },
-            // Nouvelles questions ajoutées pour pouvoir gagner
             { q: "3/10 en décimal ?", o: ["0,3", "3,0", "0,03"], c: 0, e: "Trois dixièmes." },
             { q: "1/100 en décimal ?", o: ["0,01", "0,1", "100"], c: 0, e: "Un centième." },
             { q: "1/1 en entier ?", o: ["1", "0,1", "10"], c: 0, e: "Une unité complète." },
