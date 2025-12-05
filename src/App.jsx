@@ -9,11 +9,16 @@ import { Login, StudentDashboard } from './components/Dashboards.jsx';
 import { Game } from './components/Game';
 import ChronoGame from './components/games/ChronoGame';
 import SurvivalGameLogic from './components/games/SurvivalGame';
+import BrevetGame from './components/games/BrevetGame'; // <--- NOUVEAU COMPOSANT
 
 // --- IMPORTS DES EXERCICES SPÉCIFIQUES ---
 import ExerciceLectureGraphique from './components/ExerciceLectureGraphique.jsx';
 import ExerciceTableauValeursCourbe from './components/games/ExerciceTableauValeursCourbe.jsx';
 import ExerciceThales from './components/games/ExerciceThales';
+import ExercicePythagore from './components/games/ExercicePythagore'; // N'oublie pas Pythagore !
+
+// --- DONNÉES (Pour retrouver le sujet complet par ID) ---
+import { BREVET_DATA } from './utils/brevetData.js';
 
 export default function App() {
   const { user, loading, login, saveProgress, setUser, refreshStudent, resetTeacherAccount, resetTraining } = useAuth();
@@ -37,7 +42,20 @@ export default function App() {
 
   const handlePlay = (mode, id, level = 1) => {
     triggerSound('CLICK');
-    if (mode === 'SURVIVAL_PLAY') {
+
+    // --- MODE BREVET ---
+    if (mode === 'BREVET') {
+      // On cherche le sujet complet dans les données
+      const subject = BREVET_DATA.find(s => s.id === id);
+      if (subject) {
+        setGameConfig({ mode: 'BREVET', subject }); // On stocke l'objet sujet complet
+        setView('GAME'); // On passe en vue jeu
+      } else {
+        console.error("Sujet introuvable :", id);
+      }
+    }
+    // --- AUTRES MODES ---
+    else if (mode === 'SURVIVAL_PLAY') {
       setGameConfig({ modeId: id });
       setView('SURVIVAL_GAME');
     }
@@ -52,38 +70,32 @@ export default function App() {
       setView('GAME');
     }
     else {
-      // C'est ici que le niveau est enregistré dans la config
+      // Mode classique (Automatismes)
       setGameConfig({ mode, id, level });
       setView('GAME');
     }
   };
 
   const handleFinish = async (score) => {
+    // Si c'est un Brevet, on ne sauvegarde pas d'XP pour l'instant (ou logique spécifique plus tard)
+    if (gameConfig?.mode === 'BREVET') {
+      setView('DASHBOARD');
+      setGameConfig(null);
+      return;
+    }
 
-    // On attend le résultat de la sauvegarde
     const result = await saveProgress(gameConfig.mode, gameConfig.id, gameConfig.level, score);
-
     setView('DASHBOARD');
     setGameConfig(null);
 
-    // MESSAGE INTELLIGENT
     if (result && result.xpGainTotal > 0) {
       setTimeout(() => {
         triggerSound('WIN');
-
         let msg = `Bravo ! Tu as gagné +${result.xpGainTotal} XP !\n`;
-
-        if (result.details && result.details.exo > 0) msg += `\n💪 Exercice : +${result.details.exo} XP`;
-        else msg += `\n💪 Exercice : Déjà maîtrisé (pas d'XP)`;
-
-        if (result.details && result.details.quest > 0) msg += `\n🎯 Objectif Quête : +${result.details.quest} XP`;
-        if (result.details && result.details.bonus > 0) msg += `\n🔥 Bonus final : +${result.details.bonus} XP`;
-
-        if (result.questCompletedNow) {
-          msg += `\n\n🎉 QUÊTE TERMINÉE !`;
-        }
-
-        // Note: Tu pourrais remplacer cet alert par une jolie modale plus tard
+        if (result.details?.exo > 0) msg += `\n💪 Exercice : +${result.details.exo} XP`;
+        if (result.details?.quest > 0) msg += `\n🎯 Objectif Quête : +${result.details.quest} XP`;
+        if (result.details?.bonus > 0) msg += `\n🔥 Bonus final : +${result.details.bonus} XP`;
+        if (result.questCompletedNow) msg += `\n\n🎉 QUÊTE TERMINÉE !`;
         alert(msg);
       }, 500);
     }
@@ -133,56 +145,71 @@ export default function App() {
       />}
 
       <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">Chargement du jeu...</div>}>
-        {view === 'GAME' && (
-          // --- ROUTEUR DES EXERCICES ---
 
-          // 26. Thalès
-          gameConfig?.id === 'auto_26_thales' ? (
-            <ExerciceThales
-              key={`thales-${gameConfig.level}`}  // Force la remise à zéro complète quand le niveau change
-              level={gameConfig.level}            // Donne le niveau pour l'initialisation
-              user={user}
-              onFinish={handleFinish}
+        {view === 'GAME' && (
+          // --- ROUTEUR DES MODES DE JEU ---
+
+          // 1. MODE BREVET (NOUVEAU)
+          gameConfig?.mode === 'BREVET' ? (
+            <BrevetGame
+              subject={gameConfig.subject}
               onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
-              onSound={triggerSound}
             />
           ) :
-            // 37. Lecture Graphique
 
-            gameConfig?.id === 'auto_37_graph' ? (
-              <ExerciceLectureGraphique
-                key={`graph-${gameConfig.level}`} // Force la remise à zéro si on change de niveau
+            // 2. EXERCICES SPÉCIFIQUES
+            gameConfig?.id === 'auto_26_thales' ? (
+              <ExerciceThales
+                key={`thales-${gameConfig.level}`}
+                level={gameConfig.level}
                 user={user}
-                level={gameConfig.level}          // <--- TRANSMISSION DU NIVEAU AJOUTÉE ICI
                 onFinish={handleFinish}
                 onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                 onSound={triggerSound}
               />
             ) :
-              // 38. Lecture Graphique 2
-
-              gameConfig?.id === 'auto_38_graph2' ? (
-                <ExerciceTableauValeursCourbe
-                  key={`graph-${gameConfig.level}`} // Force la remise à zéro si on change de niveau
+              gameConfig?.id === 'auto_25_pythagore' ? ( // Ajout de Pythagore
+                <ExercicePythagore
+                  key={`pythagore-${gameConfig.level}`}
+                  level={gameConfig.level}
                   user={user}
-                  level={gameConfig.level}          // <--- TRANSMISSION DU NIVEAU AJOUTÉE ICI
                   onFinish={handleFinish}
                   onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                   onSound={triggerSound}
                 />
               ) :
-
-                // 3. Jeu Standard (Calcul mental, tables, etc.)
-                (
-                  <Game
+                gameConfig?.id === 'auto_37_graph' ? (
+                  <ExerciceLectureGraphique
+                    key={`graph-${gameConfig.level}`}
                     user={user}
-                    config={gameConfig}
                     level={gameConfig.level}
                     onFinish={handleFinish}
-                    onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                    onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                     onSound={triggerSound}
                   />
-                )
+                ) :
+                  gameConfig?.id === 'auto_38_graph2' ? (
+                    <ExerciceTableauValeursCourbe
+                      key={`graph-${gameConfig.level}`}
+                      user={user}
+                      level={gameConfig.level}
+                      onFinish={handleFinish}
+                      onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                      onSound={triggerSound}
+                    />
+                  ) :
+
+                    // 3. JEU STANDARD (Le reste)
+                    (
+                      <Game
+                        user={user}
+                        config={gameConfig}
+                        level={gameConfig.level}
+                        onFinish={handleFinish}
+                        onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                        onSound={triggerSound}
+                      />
+                    )
         )}
 
         {view === 'SURVIVAL_GAME' && (

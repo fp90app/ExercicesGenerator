@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST, TRAINING_MODULES, QUESTIONS_DB, PROCEDURAL_EXOS } from '../utils/data';
+import { BREVET_DATA } from '../utils/brevetData';
 
 // --- UTILITAIRES COULEURS (Mis à jour pour matcher la vue Prof) ---
 const getLevelColor = (count) => {
@@ -232,6 +233,80 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
 };
 
 
+// --- VUE LISTE DES SUJETS DE BREVET --- //
+const BrevetList = ({ onPlay, onBack }) => {
+    return (
+        <div className="fade-in pb-12">
+            {/* Bouton Retour */}
+            <button onClick={onBack} className="mb-6 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600 transition-colors">
+                <Icon name="arrow-left" /> Retour au menu
+            </button>
+
+            <div className="mb-8">
+                <h2 className="text-3xl font-black text-slate-800 mb-2 flex items-center gap-3">
+                    <span className="bg-emerald-100 text-emerald-600 p-2 rounded-xl text-2xl"><Icon name="graduation-cap" /></span>
+                    Annales du Brevet
+                </h2>
+                <p className="text-slate-500 max-w-2xl">
+                    Entraîne-toi sur des sujets réels. Prends le temps de bien lire les énoncés.
+                    La calculatrice est autorisée pour la partie problèmes.
+                </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {BREVET_DATA.map(subject => (
+                    <div key={subject.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative">
+
+                        {/* En-tête visuel */}
+                        <div className="h-28 bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden group-hover:bg-indigo-50 transition-colors">
+                            {/* Motif de fond léger */}
+                            <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+                            <Icon name="file-text" className="text-5xl text-slate-300 group-hover:text-indigo-300 transition-colors duration-500" />
+
+                            {/* Badge Points */}
+                            <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg text-xs font-bold text-slate-600 shadow-sm border border-slate-100">
+                                {subject.totalPoints} pts
+                            </div>
+                        </div>
+
+                        <div className="p-6 flex-1 flex flex-col">
+                            <div className="mb-4">
+                                <h3 className="text-xl font-bold text-slate-800 mb-1">{subject.title}</h3>
+                                <p className="text-sm text-slate-500 leading-snug">{subject.description}</p>
+                            </div>
+
+                            {/* Détails du contenu */}
+                            <div className="flex gap-2 mb-6">
+                                {subject.parts.map((part, i) => (
+                                    <span key={i} className="text-[10px] uppercase font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded">
+                                        {part.title.split(':')[0]} {/* Affiche juste "Partie 1" */}
+                                    </span>
+                                ))}
+                            </div>
+
+                            <div className="mt-auto">
+                                <button
+                                    onClick={() => onPlay('BREVET', subject.id)} // On lance le jeu avec l'ID du sujet
+                                    className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg"
+                                >
+                                    <Icon name="play" weight="fill" /> Commencer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Carte "Bientôt" pour remplir si vide */}
+                <div className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-6 text-slate-400 min-h-[300px]">
+                    <Icon name="clock" size={32} className="mb-2 opacity-50" />
+                    <span className="font-bold text-sm">D'autres sujets arrivent...</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // =========================================================
 // 4. STUDENT DASHBOARD (MAIN) - VERSION COMPACTE & ALIGNÉE
 // =========================================================
@@ -303,7 +378,14 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 fade-in">
                         <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Record : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas de chrono"} />
                         <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions" : "notion"; return count > 0 ? `${count} ${label}` : "Aucun exercice"; }} />
-                        <MenuCard icon="barbell" title="Entrainement" desc="Chapitres de cours." color="emerald" onClick={() => setActiveTab('TRAINING')} footer="Accès aux chapitres" />
+                        <MenuCard
+                            icon="graduation-cap" // Changement d'icône
+                            title="Annales Brevet" // Changement de titre
+                            desc="Sujets complets officiels."
+                            color="emerald" // On garde le vert ou on change
+                            onClick={() => setActiveTab('BREVET')} // Nouvelle clé pour l'onglet
+                            footer={`${BREVET_DATA.length} sujet${BREVET_DATA.length > 1 ? 's' : ''} disponible${BREVET_DATA.length > 1 ? 's' : ''}`}
+                        />
                         <MenuCard icon="fire" title="Survie" desc="Défis chronométrés." color="red" onClick={() => setActiveTab('SURVIVAL')} footer={() => { const h = user.data.survival_history || {}; const getBest = (k) => Math.max(0, ...(h[k]?.map(x => (typeof x === 'object' ? x.val : x)) || [])); const s1 = getBest('EXPLORATEUR'); if (s1 === 0) return "Aucun record"; return `Record Expl. : ${s1}`; }} />
                     </div>
                 )}
@@ -413,14 +495,11 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     </div>
                 )}
 
-                {activeTab === 'TRAINING' && (
-                    <div className="fade-in space-y-6">
-                        <button onClick={() => setActiveTab('HOME')} className="mb-4 text-sm text-slate-400 flex items-center gap-1"><Icon name="arrow-left" /> Retour</button>
-                        <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center">
-                            <h3 className="font-bold text-lg text-emerald-600 mb-4">Chapitres en cours</h3>
-                            {TRAINING_MODULES.map(mod => (<div key={mod.id} className="p-4 border rounded-xl mb-2 text-left hover:bg-slate-50 cursor-pointer font-bold" onClick={() => alert("Bientôt !")}>{mod.title}</div>))}
-                        </div>
-                    </div>
+                {activeTab === 'BREVET' && (
+                    <BrevetList
+                        onPlay={onPlay}
+                        onBack={() => setActiveTab('HOME')}
+                    />
                 )}
 
                 {activeTab === 'SURVIVAL' && <SurvivalView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} />}
