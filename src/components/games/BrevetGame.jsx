@@ -335,18 +335,88 @@ const BrevetGame = ({ subject, onQuit, onFinish }) => {
                                                 const isSelected = val === opt;
                                                 let btnClass = "bg-white border-slate-200 text-slate-600 hover:border-indigo-300";
                                                 if (isReview) {
-                                                    if (opt === q.correct) btnClass = "bg-emerald-500 text-white border-emerald-600 shadow-md";
-                                                    else if (isSelected) btnClass = "bg-red-400 text-white border-red-500 opacity-50";
-                                                    else btnClass = "opacity-30 grayscale border-transparent";
-                                                } else if (isSelected) btnClass = "bg-indigo-600 border-indigo-600 text-white shadow-md scale-[1.02]";
+                                                    if (opt === q.correct) {
+                                                        // C'est la bonne réponse
+                                                        if (isSelected) {
+                                                            // CAS 1 : L'élève a trouvé -> VERT PLEIN (Succès)
+                                                            btnClass = "bg-emerald-500 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300 font-black scale-105";
+                                                        } else {
+                                                            // CAS 2 : L'élève n'a pas trouvé -> BORDURE VERTE (Indication de la solution)
+                                                            btnClass = "bg-white text-emerald-600 border-2 border-emerald-500 opacity-100 ring-1 ring-emerald-200 relative overflow-hidden";
+                                                            // On peut même ajouter un petit style hachuré ou un texte pour dire "C'était ça"
+                                                        }
+                                                    } else if (isSelected) {
+                                                        // CAS 3 : L'élève s'est trompé -> ROUGE
+                                                        btnClass = "bg-red-400 text-white border-red-500 opacity-50 line-through decoration-2";
+                                                    } else {
+                                                        // CAS 4 : Autres options -> GRISÉ
+                                                        btnClass = "opacity-30 grayscale border-transparent";
+                                                    }
+                                                }
+                                                // --- LOGIQUE DE JEU (Pas de changement) ---
+                                                else if (isSelected) {
+                                                    btnClass = "bg-indigo-600 border-indigo-600 text-white shadow-md scale-[1.02]";
+                                                }
 
                                                 return (
-                                                    <button key={opt} onClick={() => !isReview && handleInput(q.id, opt)} disabled={isReview} className={`p-3 rounded-xl border-2 font-bold text-sm transition-all text-left ${btnClass}`}>{opt}</button>
+                                                    <button
+                                                        key={opt}
+                                                        onClick={() => !isReview && handleInput(q.id, opt)}
+                                                        disabled={isReview}
+                                                        className={`p-3 rounded-xl border-2 font-bold text-sm transition-all text-left relative ${btnClass}`}
+                                                    >
+                                                        {opt}
+
+                                                        {/* OPTIONNEL : Indicateur textuel explicite */}
+                                                        {isReview && opt === q.correct && !isSelected && (
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                                                                Pas de réponse
+                                                            </span>
+                                                        )}
+                                                        {isReview && isSelected && opt !== q.correct && (
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                                                                Erreur
+                                                            </span>
+                                                        )}
+                                                    </button>
                                                 )
                                             })}
                                         </div>
                                     ) : (
-                                        <input type={q.type === 'number' ? 'number' : 'text'} value={val} onChange={(e) => handleInput(q.id, e.target.value)} disabled={isReview} className={`w-full p-4 rounded-xl border-2 outline-none transition-all font-mono text-lg font-bold ${statusColor}`} placeholder={isReview ? "" : "Votre réponse..."} />
+                                        <input
+                                            type={q.type === 'number' ? 'number' : 'text'}
+                                            // On s'assure que val est une chaîne vide si undefined
+                                            value={val}
+                                            onChange={(e) => handleInput(q.id, e.target.value)}
+                                            disabled={isReview}
+                                            className={`w-full p-4 rounded-xl border-2 outline-none transition-all font-mono text-lg font-bold ${isReview
+                                                ? (
+                                                    // LOGIQUE DE CORRECTION
+                                                    // On recalcule la justesse ici pour déterminer la couleur
+                                                    (() => {
+                                                        const userValClean = String(val).trim().toLowerCase().replace(',', '.');
+                                                        const correctValClean = String(q.correct).trim().toLowerCase();
+
+                                                        let isCorrect = false;
+                                                        if (Array.isArray(q.correct)) {
+                                                            isCorrect = q.correct.some(opt => String(opt).trim().toLowerCase() === userValClean);
+                                                        } else {
+                                                            isCorrect = userValClean === correctValClean;
+                                                        }
+
+                                                        // SI CORRECT -> Vert
+                                                        if (isCorrect) return "border-emerald-500 bg-emerald-50 text-emerald-900";
+
+                                                        // SI VIDE (et donc Faux) -> Rouge (C'est ce qui manquait !)                         if (val === "") return "border-red-400 bg-red-50 text-red-900 placeholder-red-300";
+
+                                                        // SI FAUX (et rempli) -> Rouge
+                                                        return "border-red-500 bg-red-50 text-red-900";
+                                                    })()
+                                                )
+                                                : "border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50"
+                                                }`}
+                                            placeholder={isReview ? (val === "" ? "Pas de réponse" : "") : "Votre réponse..."}
+                                        />
                                     )}
 
                                     {/* Correction */}

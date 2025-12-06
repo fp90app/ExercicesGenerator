@@ -235,6 +235,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
 
 // --- VUE LISTE DES SUJETS DE BREVET --- //
 // Modification: Ajout de la prop 'user' pour récupérer l'historique
+// --- VUE LISTE DES SUJETS DE BREVET --- //
 const BrevetList = ({ onPlay, onBack, user }) => {
     return (
         <div className="fade-in pb-12">
@@ -268,14 +269,12 @@ const BrevetList = ({ onPlay, onBack, user }) => {
                                 {/* Motif de fond léger */}
                                 <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                                <Icon name="file-text" className="text-5xl text-slate-300 group-hover:text-indigo-300 transition-colors duration-500" />
+                                {/* MODIFICATION ICI : Icône plus grosse, plus claire et changée pour "graduation-cap" */}
+                                <Icon name="graduation-cap" className="text-7xl text-slate-200 group-hover:text-indigo-200 transition-colors duration-500 transform group-hover:scale-110" />
 
-                                {/* Badge Points */}
-                                <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg text-xs font-bold text-slate-600 shadow-sm border border-slate-100">
-                                    {subject.totalPoints} pts
-                                </div>
+                                {/* MODIFICATION ICI : Le badge "18 pts" a été supprimé */}
 
-                                {/* --- 2. NOUVEAU BADGE SCORE --- */}
+                                {/* Badge Score (reste affiché s'il existe) */}
                                 {bestScore && (
                                     <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border ${parseFloat(bestScore) >= 12
                                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
@@ -323,6 +322,7 @@ const BrevetList = ({ onPlay, onBack, user }) => {
         </div>
     );
 };
+
 
 // =========================================================
 // 4. STUDENT DASHBOARD (MAIN) - VERSION COMPACTE & ALIGNÉE
@@ -397,8 +397,8 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                         <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions" : "notion"; return count > 0 ? `${count} ${label}` : "Aucun exercice"; }} />
                         <MenuCard
                             icon="graduation-cap" // Changement d'icône
-                            title="Annales Brevet" // Changement de titre
-                            desc="Sujets complets officiels."
+                            title="Brevet" // Changement de titre
+                            desc="Sujets complets"
                             color="emerald" // On garde le vert ou on change
                             onClick={() => setActiveTab('BREVET')} // Nouvelle clé pour l'onglet
                             footer={`${BREVET_DATA.length} sujet${BREVET_DATA.length > 1 ? 's' : ''} disponible${BREVET_DATA.length > 1 ? 's' : ''}`}

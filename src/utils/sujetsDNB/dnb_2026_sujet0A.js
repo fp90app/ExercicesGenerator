@@ -2,8 +2,8 @@ export const SUJET_2026_0A = {
     id: "dnb_2026_sujet0A",
     title: "Sujet 0A - DNB 2026",
     description: "Série Générale - Épreuve Mathématiques (2h)",
-    totalPoints: 18, // Total calculé hors points de rédaction
-    redactionPoints: 2, // 2 points non évalués pour le soin et la qualité de la rédaction
+    totalPoints: 18,
+    redactionPoints: 2,
     parts: [
         {
             id: "part1_auto",
@@ -16,8 +16,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "q1",
-                            label: "Q1. Tiers",
-                            question: "Quel est le tiers de 18 ?",
+                            label: "Q1 - Quel est le tiers de 18 ?",
                             type: "number",
                             point: 0.5,
                             correct: 6,
@@ -25,8 +24,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q2",
-                            label: "Q2. Durée",
-                            question: "Un film dure 240 min. Durée en heures ?",
+                            label: "Q2 - Un film dure 240 min. Quelle est sa durée en heures ?",
                             type: "number",
                             point: 0.5,
                             correct: 4,
@@ -34,8 +32,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q3",
-                            label: "Q3. Médiane",
-                            question: "Quelle est la médiane : 8 ; 12 ; 6 ; 19 ; 15 ?",
+                            label: "Q3 - Quelle est la médiane de la série : 8 ; 12 ; 6 ; 19 ; 15 ?",
                             type: "number",
                             point: 1,
                             correct: 12,
@@ -43,8 +40,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q4",
-                            label: "Q4. Axe",
-                            question: "Abscisse du point E ?",
+                            label: "Q4 - Quelle est l'abscisse du point E ?",
                             type: "qcm",
                             point: 0.5,
                             options: ["5/4", "3/2", "7/4"],
@@ -53,8 +49,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q5",
-                            label: "Q5. Angles",
-                            question: "Triangle rectangle en B, Â = 35°. Calculer Ĉ en °.",
+                            label: "Q5 - Le triangle est rectangle en B, Â = 35°. Calculer Ĉ en °.",
                             type: "number",
                             point: 0.5,
                             correct: 55,
@@ -68,8 +63,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "q6",
-                            label: "Q6. Trigo",
-                            question: "Formule du cosinus de l'angle ABC ?",
+                            label: "Q6 - Quelle est la formule du cosinus de l'angle ABC ?",
                             type: "qcm",
                             point: 0.5,
                             options: ["AB/BC", "BC/AB", "AC/BC"],
@@ -78,8 +72,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q7",
-                            label: "Q7. Thalès",
-                            question: "Longueur AD en cm.",
+                            label: "Q7 - Quelle est la longueur AD (en cm) ?",
                             type: "number",
                             point: 1,
                             correct: 14,
@@ -87,8 +80,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q8",
-                            label: "Q8. Pourcentage",
-                            question: "Combien d'élèves NE participent PAS ?",
+                            label: "Q8 - Combien d'élèves ne participent pas ?",
                             type: "number",
                             point: 1,
                             correct: 225,
@@ -96,8 +88,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q9_1",
-                            label: "Q9. Boucle",
-                            question: "Répéter combien de fois ?",
+                            label: "Q9a - On doit répéter la boucle combien de fois ?",
                             type: "number",
                             point: 0.25,
                             correct: 4,
@@ -105,8 +96,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "q9_2",
-                            label: "Q9. Angle",
-                            question: "Tourner de combien de degrés ?",
+                            label: "Q9b - On doit tourner de combien de degrés ?",
                             type: "number",
                             point: 0.25,
                             correct: 90,
@@ -128,8 +118,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "e1_q1_moy",
-                            label: "1. Moyenne",
-                            question: "Moyenne des déchets (arrondir à l'entier le plus proche) ?",
+                            label: "1a - Quelle est la moyenne des déchets (arrondir à l'entier) ?",
                             type: "number",
                             point: 1,
                             correct: 64,
@@ -137,8 +126,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e1_q1_obj",
-                            label: "1. Objectif",
-                            question: "L'objectif est-il atteint ?",
+                            label: "1b - L'objectif est-il atteint ?",
                             type: "qcm",
                             point: 0.5,
                             options: ["Oui", "Non"],
@@ -147,8 +135,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e1_q2a_val",
-                            label: "2.a. Effectif",
-                            question: "Effectif total d'élèves ?",
+                            label: "2a - Quel est l'effectif total d'élèves ?",
                             type: "number",
                             point: 0.5,
                             correct: 257,
@@ -156,8 +143,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e1_q2b_val",
-                            label: "2.b. Taux",
-                            question: "% élèves parcourant ≥ 5 km (entier) ?",
+                            label: "2b - Quel est le % d'élèves parcourant ≥ 5 km (arrondir au pourcentage entier le plus proche) ?",
                             type: "number",
                             point: 0.5,
                             correct: 33,
@@ -165,8 +151,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e1_q2b_vrai",
-                            label: "2.b. Affirmation",
-                            question: "L'affirmation 'Plus de 30%' est-elle vraie ?",
+                            label: "2c - L'affirmation 'Plus de 30%' est-elle vraie ?",
                             type: "qcm",
                             point: 0.5,
                             options: ["Oui", "Non"],
@@ -182,8 +167,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "e2_q1",
-                            label: "1. Test",
-                            question: "Résultat avec 4 au départ ?",
+                            label: "1 - Quel est le résultat avec 4 au départ ?",
                             type: "number",
                             point: 1,
                             correct: 55,
@@ -191,20 +175,18 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e2_q2a",
-                            label: "2.a. Expression",
-                            question: "Expression en fonction de x ?",
+                            label: "2a - Quelle est l'expression en fonction de x ?",
                             type: "text",
                             point: 1,
-                            correct: ["55", "4x^2-9", "4x²-9", "(2x)^2-9", "(2x)²-9"],
+                            correct: ["4x^2-9", "4x²-9", "(2x)^2-9", "(2x)²-9", "4×x²-9", "(2×x)²-9"],
                             correction: "(2x)² - 9 = 4x² - 9."
                         },
                         {
                             id: "e2_q2b",
-                            label: "2.b. Forme",
-                            question: "Quelle est la forme factorisée ?",
+                            label: "2b - Quelle est la forme factorisée ?",
                             type: "qcm",
                             point: 1,
-                            options: ["55", "(2x+3)²", "(2x-3)(2x+3)"],
+                            options: ["55", "(2x+3)²", "(2x-3)(2x+3)", "(2x-3)²"],
                             correct: "(2x-3)(2x+3)",
                             correction: "Identité a²-b²."
                         }
@@ -217,8 +199,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "e3_q1",
-                            label: "1. Proportionnalité",
-                            question: "Quelle fonction correspond à une situation de proportionnalité ?",
+                            label: "1 - Quelle fonction correspond à une situation de proportionnalité ?",
                             type: "qcm",
                             point: 0.25,
                             options: ["f", "g"],
@@ -227,8 +208,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q2",
-                            label: "2. Image",
-                            question: "Image de 0 par g ?",
+                            label: "2 - Quelle est l'image de 0 par g ?",
                             type: "number",
                             point: 0.25,
                             correct: 0,
@@ -236,8 +216,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q3",
-                            label: "3. Antécédent",
-                            question: "Antécédent de 0 par f ?",
+                            label: "3 - Quel est l'antécédent de 0 par f ?",
                             type: "number",
                             point: 0.5,
                             correct: -0.75,
@@ -245,8 +224,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q4_d1",
-                            label: "4. Droite (d1)",
-                            question: "Fonction pour (d1) ?",
+                            label: "4a - Quelle est la fonction représentée par (d1) ?",
                             type: "qcm",
                             point: 0.25,
                             options: ["f", "g"],
@@ -255,8 +233,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q4_d2",
-                            label: "4. Droite (d2)",
-                            question: "Fonction pour (d2) ?",
+                            label: "4b - Quelle est la fonction représentée par (d2) ?",
                             type: "qcm",
                             point: 0.25,
                             options: ["f", "g"],
@@ -265,8 +242,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q5_x",
-                            label: "5. Intersec X",
-                            question: "Abscisse intersection ?",
+                            label: "5a - Quelle est l'abscisse du point d'intersection ?",
                             type: "number",
                             point: 0.75,
                             correct: 1.5,
@@ -274,8 +250,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e3_q5_y",
-                            label: "5. Intersec Y",
-                            question: "Ordonnée intersection ?",
+                            label: "5b - Quelle est l'ordonnée du point d'intersection ?",
                             type: "number",
                             point: 0.75,
                             correct: 9,
@@ -290,8 +265,7 @@ export const SUJET_2026_0A = {
                     questions: [
                         {
                             id: "e4_q1a_IJ",
-                            label: "1.a. IJ",
-                            question: "Longueur IJ (cm) ?",
+                            label: "1a - Quelle est la longueur IJ (en cm) ?",
                             type: "number",
                             point: 0.25,
                             correct: 3,
@@ -299,8 +273,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e4_q1a_IP",
-                            label: "1.a. IP",
-                            question: "Longueur IP (arrondir 0,1) ?",
+                            label: "1b - Quelle est la longueur IP (en cm, arrondir au dixième) ?",
                             type: "number",
                             point: 0.5,
                             correct: 4.2,
@@ -308,8 +281,7 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e4_q1a_VF",
-                            label: "1.a. Régulier",
-                            question: "Polygone régulier ?",
+                            label: "1c - Est-ce un polygone régulier ?",
                             type: "qcm",
                             point: 0.25,
                             options: ["Oui", "Non"],
@@ -318,40 +290,36 @@ export const SUJET_2026_0A = {
                         },
                         {
                             id: "e4_q1b",
-                            label: "1.b. Aire Poly",
-                            question: "Aire polygone (cm²) ?",
+                            label: "1d - Quelle est l'aire du polygone (en cm²) ?",
                             type: "number",
                             point: 0.5,
                             correct: 63,
-                            correction: "81 - 18 = 63."
+                            correction: "81 - 18 = 63 cm²."
                         },
                         {
                             id: "e4_q2a",
-                            label: "2.a. Aire Disq",
-                            question: "Aire disque (cm²) ?",
+                            label: "2a - Quelle est l'aire du disque (en cm², arrondie au dixème) ?",
                             type: "number",
                             point: 0.5,
-                            correct: 64,
-                            correction: "π×4,5² ≈ 64."
+                            correct: 63.6,
+                            correction: "π×4,5² ≈ 63.6 cm²."
                         },
                         {
                             id: "e4_q2b",
-                            label: "2.b. Diff %",
-                            question: "% différence (arrondir 0,01) ?",
+                            label: "2b - Quel est le % de différence (arrondir au dixième) ?",
                             type: "number",
                             point: 0.5,
-                            correct: 1,
-                            correction: "~1%."
+                            correct: ["0.9", "1",],
+                            correction: "63.6 - 63 = 0.6 cm² d'écart : cela représente une proportion de 0.6/64 ≈0.009, soit 0.9% en multipliant par 100."
                         },
                         {
                             id: "e4_q2b_VF",
-                            label: "2.b. Conclusion",
-                            question: "La différence entre les deux aires est-elle bien inférieure à 2% ?",
+                            label: "2c - La différence est-elle bien inférieure à 2% ?",
                             type: "qcm",
                             point: 0.5,
                             options: ["Oui", "Non"],
                             correct: "Oui",
-                            correction: "1% < 2%."
+                            correction: "0.9% < 2%."
                         }
                     ]
                 }
