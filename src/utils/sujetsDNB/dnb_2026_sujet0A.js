@@ -13,7 +13,7 @@ export const SUJET_2026_0A =
                 {
                     id: "auto_bloc_1",
                     // L'image contenant les questions 1 à 5
-                    image: "public/assets/brevet/sujet0A/DNB2026_Sujet_0A_2.webp",
+                    image: "/assets/brevet/sujet0A/DNB2026_Sujet_0A_2.webp",
                     questions: [
                         {
                             id: "q1",
