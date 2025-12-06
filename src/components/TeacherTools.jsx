@@ -5,11 +5,13 @@ import { Icon } from './UI';
 import { timeAgo } from '../utils/mathGenerators';
 
 import { AUTOMATISMES_DATA, PROCEDURAL_EXOS, QUESTIONS_DB } from '../utils/data';
+import { BREVET_DATA } from '../utils/brevetData';
 
 
 
 const LISTE_CLASSES = ["3A", "3B", "3C", "3D", "3E", "4A", "4B", "4C", "4D", "4E", "5A", "5B", "5C", "5D", "6A", "6B", "6C", "6D", "Sans classe"];
 
+// --- UTILITAIRES STATS (Centralisés) ---
 // --- UTILITAIRES STATS (Centralisés) ---
 const calculateStats = (s) => {
     // 1. Tables (Max 22)
@@ -38,7 +40,36 @@ const calculateStats = (s) => {
         if (times.length > 0) bestChrono = Math.min(...times);
     }
 
-    // 5. Détails XP pour la modale
+    // 5. Brevets (Nouveau) - VERSION SÉCURISÉE
+    let brevetsValidated = 0;
+    let brevetDetails = [];
+
+    // On vérifie que brevet_history existe et que c'est bien un objet
+    if (s.brevet_history && typeof s.brevet_history === 'object') {
+        Object.entries(s.brevet_history).forEach(([id, data]) => {
+            let noteSur20 = 0;
+            let title = id;
+
+            // Gestion de la compatibilité (anciens formats vs nouveaux)
+            if (typeof data === 'number') {
+                noteSur20 = data;
+            } else if (typeof data === 'object' && data !== null) {
+                // On s'assure que markOver20 est traité comme un nombre
+                noteSur20 = parseFloat(data.markOver20 || 0);
+                title = data.title || id;
+            }
+
+            // On compte comme "Validé" si > 12 (vous pouvez changer ce seuil)
+            if (noteSur20 > 12) {
+                brevetsValidated++;
+            }
+
+            // On ajoute à la liste des détails pour la modale
+            brevetDetails.push({ id, title, note: noteSur20 });
+        });
+    }
+
+    // 6. Détails XP pour la modale
     let xpDetails = { tables: 0, div: 0, auto: 0, quest: 0 };
     if (s.tables) Object.values(s.tables).forEach(c => xpDetails.tables += Math.min(c, 3) * 10);
     if (s.divisions) Object.values(s.divisions).forEach(c => xpDetails.div += Math.min(c, 3) * 10);
@@ -49,7 +80,7 @@ const calculateStats = (s) => {
     });
     xpDetails.quest = Math.max(0, (s.xp || 0) - (xpDetails.tables + xpDetails.div + xpDetails.auto));
 
-    return { tablesCount, skillsCount, maxSurvival, bestChrono, xpDetails };
+    return { tablesCount, skillsCount, maxSurvival, bestChrono, xpDetails, brevetsValidated, brevetDetails };
 };
 
 // --- MODALE IMPORT MASSE ---
@@ -463,6 +494,35 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                             </div>
                             {/* -------------------------------------------------- */}
 
+                            {/* --- SECTION : BREVETS BLANCS --- */}
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-6">
+                                <h3 className="font-bold text-indigo-900 text-sm mb-3 flex items-center gap-2">
+                                    <Icon name="graduation-cap" className="text-indigo-600" />
+                                    Brevets Blancs
+                                    {stats.brevetsValidated > 0 && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] ml-2">{stats.brevetsValidated} réussis</span>}
+                                </h3>
+
+                                {stats.brevetDetails && stats.brevetDetails.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {stats.brevetDetails.map((b, idx) => (
+                                            <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
+                                                <span className="font-medium text-slate-700 truncate mr-2" title={b.title}>
+                                                    {b.title}
+                                                </span>
+                                                <div className={`font-mono font-bold px-2 py-0.5 rounded text-xs ${b.note > 12 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-50 text-orange-600'}`}>
+                                                    {b.note}/20
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-slate-400 text-xs italic bg-slate-50 p-3 rounded-lg text-center">
+                                        Aucun sujet de brevet réalisé pour le moment.
+                                    </div>
+                                )}
+                            </div>
+                            {/* ---------------------------------------- */}
+
                             {/* PARTAGE */}
                             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-6">
                                 <h3 className="font-bold text-purple-800 text-sm mb-3 flex items-center gap-2"><Icon name="share-network" /> Partage Collègues</h3>
@@ -762,28 +822,38 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-100 text-slate-500 uppercase font-bold text-xs">
                                 <tr>
+                                    {/* Colonnes existantes */}
                                     {[
                                         { k: 'classe', l: 'Classe' },
                                         { k: 'nom', l: 'Nom' },
                                         { k: 'identifiant', l: 'ID' },
                                         { k: 'xp', l: 'XP' },
-                                        { k: 'tablesCount', l: 'Tables' },
-                                        { k: 'skillsCount', l: 'Exos' }
+                                        // J'ai retiré 'tables' et 'exos' pour faire de la place, 
+                                        // mais vous pouvez les garder si vous avez un grand écran.
                                     ].map(col => (
                                         <th key={col.k} className="p-4 cursor-pointer hover:bg-slate-200 transition-colors" onClick={() => handleSort(col.k)}>
                                             <div className="flex items-center gap-1">{col.l} {sortConfig.key === col.k && <Icon name={sortConfig.direction === 'asc' ? 'caret-up' : 'caret-down'} weight="fill" />}</div>
+                                        </th>
+                                    ))}
+
+                                    {/* --- NOUVELLES COLONNES DYNAMIQUES BREVETS --- */}
+                                    {BREVET_DATA.map(b => (
+                                        <th key={b.id} className="p-4 text-center min-w-[100px] text-indigo-600 border-l border-slate-200">
+                                            {b.title}
                                         </th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {loading ? (
-                                    <tr><td colSpan="6" className="p-8 text-center text-slate-400 font-bold">Chargement...</td></tr>
+                                    <tr><td colSpan="10" className="p-8 text-center text-slate-400 font-bold">Chargement...</td></tr>
                                 ) : filtered.length === 0 ? (
-                                    <tr><td colSpan="6" className="p-8 text-center text-slate-400 italic">Aucun élève trouvé.</td></tr>
+                                    <tr><td colSpan="10" className="p-8 text-center text-slate-400 italic">Aucun élève trouvé.</td></tr>
                                 ) : (
                                     filtered.map(s => (
                                         <tr key={s.id} onClick={() => setSelectedStudent(s)} className="hover:bg-slate-50 cursor-pointer transition-colors group">
+
+                                            {/* Infos Élève */}
                                             <td className="p-4 font-bold text-slate-400 w-24 bg-slate-50/50 group-hover:bg-slate-50">{s.classe}</td>
                                             <td className="p-4">
                                                 <div className="font-bold text-slate-800 text-base">{s.nom}</div>
@@ -791,10 +861,31 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
                                             </td>
                                             <td className="p-4 font-mono font-bold text-indigo-500 text-xs">{s.identifiant}</td>
                                             <td className="p-4"><span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold text-xs border border-amber-200">{s.xp}</span></td>
-                                            <td className="p-4 text-center w-24">
-                                                <span className={`font-bold ${s.stats.tablesCount >= 22 ? 'text-emerald-600' : 'text-slate-400'}`}>{s.stats.tablesCount}</span><span className="text-slate-300 text-xs">/22</span>
-                                            </td>
-                                            <td className="p-4 text-indigo-600 font-bold w-24 text-center">{s.stats.skillsCount}</td>
+
+                                            {/* --- CELLULES DYNAMIQUES BREVETS --- */}
+                                            {BREVET_DATA.map(b => {
+                                                // On cherche la note directement dans l'historique brut de l'élève
+                                                // (Pas besoin de passer par calculateStats ici)
+                                                const history = s.brevet_history?.[b.id];
+                                                const note = history ? parseFloat(history.markOver20) : null;
+
+                                                let cellClass = "text-slate-200 font-bold text-xl"; // Style par défaut (pas fait)
+                                                let content = "•";
+
+                                                if (note !== null) {
+                                                    content = note;
+                                                    if (note >= 12) cellClass = "text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100";
+                                                    else if (note >= 8) cellClass = "text-orange-500 font-bold bg-orange-50 px-2 py-1 rounded border border-orange-100";
+                                                    else cellClass = "text-red-400 font-bold bg-red-50 px-2 py-1 rounded border border-red-100";
+                                                }
+
+                                                return (
+                                                    <td key={b.id} className="p-4 text-center border-l border-slate-100">
+                                                        <span className={cellClass}>{content}</span>
+                                                    </td>
+                                                );
+                                            })}
+
                                         </tr>
                                     ))
                                 )}

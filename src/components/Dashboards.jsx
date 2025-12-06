@@ -234,7 +234,8 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
 
 
 // --- VUE LISTE DES SUJETS DE BREVET --- //
-const BrevetList = ({ onPlay, onBack }) => {
+// Modification: Ajout de la prop 'user' pour récupérer l'historique
+const BrevetList = ({ onPlay, onBack, user }) => {
     return (
         <div className="fade-in pb-12">
             {/* Bouton Retour */}
@@ -254,48 +255,64 @@ const BrevetList = ({ onPlay, onBack }) => {
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {BREVET_DATA.map(subject => (
-                    <div key={subject.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative">
+                {BREVET_DATA.map(subject => {
+                    // --- 1. RÉCUPÉRATION DU SCORE ---
+                    const userHistory = user.data?.brevet_history?.[subject.id];
+                    const bestScore = userHistory ? userHistory.markOver20 : null;
 
-                        {/* En-tête visuel */}
-                        <div className="h-28 bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden group-hover:bg-indigo-50 transition-colors">
-                            {/* Motif de fond léger */}
-                            <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                    return (
+                        <div key={subject.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative">
 
-                            <Icon name="file-text" className="text-5xl text-slate-300 group-hover:text-indigo-300 transition-colors duration-500" />
+                            {/* En-tête visuel */}
+                            <div className="h-28 bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden group-hover:bg-indigo-50 transition-colors">
+                                {/* Motif de fond léger */}
+                                <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                            {/* Badge Points */}
-                            <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg text-xs font-bold text-slate-600 shadow-sm border border-slate-100">
-                                {subject.totalPoints} pts
+                                <Icon name="file-text" className="text-5xl text-slate-300 group-hover:text-indigo-300 transition-colors duration-500" />
+
+                                {/* Badge Points */}
+                                <div className="absolute top-3 right-3 bg-white px-2 py-1 rounded-lg text-xs font-bold text-slate-600 shadow-sm border border-slate-100">
+                                    {subject.totalPoints} pts
+                                </div>
+
+                                {/* --- 2. NOUVEAU BADGE SCORE --- */}
+                                {bestScore && (
+                                    <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border ${parseFloat(bestScore) >= 12
+                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                                        }`}>
+                                        Note : {bestScore}/20
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-6 flex-1 flex flex-col">
+                                <div className="mb-4">
+                                    <h3 className="text-xl font-bold text-slate-800 mb-1">{subject.title}</h3>
+                                    <p className="text-sm text-slate-500 leading-snug">{subject.description}</p>
+                                </div>
+
+                                {/* Détails du contenu */}
+                                <div className="flex gap-2 mb-6">
+                                    {subject.parts.map((part, i) => (
+                                        <span key={i} className="text-[10px] uppercase font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded">
+                                            {part.title.split(':')[0]}
+                                        </span>
+                                    ))}
+                                </div>
+
+                                <div className="mt-auto">
+                                    <button
+                                        onClick={() => onPlay('BREVET', subject.id)}
+                                        className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        <Icon name="play" weight="fill" /> {bestScore ? "Recommencer" : "Commencer"}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-
-                        <div className="p-6 flex-1 flex flex-col">
-                            <div className="mb-4">
-                                <h3 className="text-xl font-bold text-slate-800 mb-1">{subject.title}</h3>
-                                <p className="text-sm text-slate-500 leading-snug">{subject.description}</p>
-                            </div>
-
-                            {/* Détails du contenu */}
-                            <div className="flex gap-2 mb-6">
-                                {subject.parts.map((part, i) => (
-                                    <span key={i} className="text-[10px] uppercase font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded">
-                                        {part.title.split(':')[0]} {/* Affiche juste "Partie 1" */}
-                                    </span>
-                                ))}
-                            </div>
-
-                            <div className="mt-auto">
-                                <button
-                                    onClick={() => onPlay('BREVET', subject.id)} // On lance le jeu avec l'ID du sujet
-                                    className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg"
-                                >
-                                    <Icon name="play" weight="fill" /> Commencer
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {/* Carte "Bientôt" pour remplir si vide */}
                 <div className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-6 text-slate-400 min-h-[300px]">
@@ -497,6 +514,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
 
                 {activeTab === 'BREVET' && (
                     <BrevetList
+                        user={user} // <--- AJOUTER CETTE PROP
                         onPlay={onPlay}
                         onBack={() => setActiveTab('HOME')}
                     />
