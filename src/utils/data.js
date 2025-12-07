@@ -120,6 +120,7 @@ export const PROCEDURAL_EXOS = [
     "auto_15_droite_graduee",
     "auto_25_pythagore",
     "auto_26_thales",
+    "auto_31_moyenne",
     "auto_37_graph",
     "auto_38_graph2",
     "auto_39_algo",

@@ -19,6 +19,7 @@ import {
     generateSubstitutionQuestion,
     generateDevelopFactorizeQuestion,
     generateFactoriseQuestion,
+    generateMeanQuestion,
 
 
 } from '../../utils/mathGenerators';
@@ -164,6 +165,13 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                     pool.push(generateFactoriseQuestion(params));
                 }
             }
+
+            else if (config.id === 'auto_31_moyenne') {
+                const params = { level: config.level };
+                for (let i = 0; i < 10; i++) {
+                    pool.push(generateMeanQuestion(params));
+                }
+            }
             // =========================================================
             // 1. MODES DE TABLES (Simple, Mixte, Division)
             // =========================================================
@@ -227,6 +235,12 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                         }
                         else if (config.id === 'auto_8_carres_3eme') {
                             for (let i = 0; i < 10; i++) pool.push(generateSquareQuestion(params));
+                        }
+                        else if (config.id === 'auto_31_moyenne') {
+                            const params = { level: config.level };
+                            for (let i = 0; i < 10; i++) {
+                                pool.push(generateMeanQuestion(params));
+                            }
                         }
 
                     }
@@ -341,7 +355,37 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                     <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-lg border border-slate-100">
                         <h2 className="text-2xl font-bold text-slate-800 mb-8 text-center leading-relaxed">{q.q}</h2>
 
+                        {/* --- AJOUT POUR LE MODULE MOYENNES (Tableaux) --- */}
+                        {q.tableData && (
+                            <div className="flex justify-center mb-8">
+                                <div className="overflow-hidden border-2 border-slate-200 rounded-xl shadow-sm">
+                                    <table className="text-sm md:text-base bg-white">
+                                        <thead className="bg-indigo-50 text-indigo-900 border-b border-indigo-100">
+                                            <tr>
+                                                {q.tableData.headers.map((h, i) => (
+                                                    <th key={i} className={`p-3 md:p-4 font-bold ${i === 0 ? 'border-r border-indigo-100' : ''}`}>
+                                                        {h}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {q.tableData.rows.map((row, i) => (
+                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                    {row.map((cell, j) => (
+                                                        <td key={j} className={`p-3 md:p-4 text-center font-mono font-bold text-slate-700 ${j === 0 ? 'border-r border-slate-100' : ''}`}>
+                                                            {cell}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
 
+                        {/* --- FIN AJOUT --- */}
                         {/* AJOUT : Affichage Scratch si disponible */}
                         {/* NOUVEAU BLOC : AFFICHAGE SCRATCH + AIDE LATÉRALE */}
                         {q.scratchBlocks && (
