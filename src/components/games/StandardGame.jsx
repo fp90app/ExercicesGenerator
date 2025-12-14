@@ -1,38 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore"; // J'ai retiré les imports inutiles
 import { db } from "../../firebase";
-import { Icon, Leaderboard } from '../UI';
-import { QUESTIONS_DB, PROCEDURAL_EXOS, AUTOMATISMES_DATA, TRAINING_MODULES } from '../../utils/data';
+
+import { Icon } from '../UI';
+import { QUESTIONS_DB } from '../../utils/data'; // Fallback statique
 import { QUESTIONS_TABLES, QUESTIONS_DIVISIONS } from '../../utils/data';
-import {
-    generateFractionQuestion,
-    generateDecimalQuestion,
-    generateFractionOpsQuestion,
-    generateFractionOfNumberQuestion,
-    generatePercentQuestion,
-    generateMultipleFormsQuestion,
-    generateScientificNotationQuestion,
-    generateSquareQuestion,
-    generateDivisibilityQuestion,
-    generateVocabularyQuestion,
-    generateSimplifyExpressionQuestion,
-    generateSubstitutionQuestion,
-    generateDevelopFactorizeQuestion,
-    generateFactoriseQuestion,
-    generateMeanQuestion,
 
+// --- NOUVEL IMPORT ---
+import { getGenerator } from '../../utils/exerciseMapping';
 
-} from '../../utils/mathGenerators';
+// --- IMPORTS COMPOSANTS SPÉCIAUX ---
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
 import ExerciceThales from './ExerciceThales';
 import ExerciceTableauValeursCourbe from './ExerciceTableauValeursCourbe';
-import ScratchScript from './ScratchBlock'; // Vérifie le chemin
-// Importe aussi le nouveau générateur
-import { generateAlgoQuestion } from '../../utils/mathGenerators';
 import ExercicePythagore from './ExercicePythagore';
-
-
-
+import ScratchScript from './ScratchBlock';
 
 const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
     const [questions, setQuestions] = useState([]);
@@ -43,154 +25,53 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
     const [feedback, setFeedback] = useState(null);
     const [showConfetti, setShowConfetti] = useState(false);
 
+    // =========================================================
+    // 0. ROUTAGE VERS COMPOSANTS SPÉCIAUX (VISUELS)
+    // =========================================================
     if (config.id === 'auto_25_pythagore') {
-        return (
-            <div className="min-h-screen bg-slate-50 relative pt-10">
-                <ExercicePythagore
-                    user={user}
-                    level={config.level} // Très important de passer le niveau
-                    onFinish={onFinish}
-                    onQuit={onBack}
-                    onSound={onSound}
-                />
-            </div>
-        );
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExercicePythagore user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
     }
     if (config.id === 'auto_26_thales') {
-
-        return (
-            <div className="min-h-screen bg-slate-50 relative pt-10">
-                <ExerciceThales
-                    user={user}
-                    onFinish={onFinish}
-
-
-                    onQuit={onBack}
-
-
-                    onSound={onSound}
-                />
-            </div>
-        );
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceThales user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
     }
-
-
     if (config.id === 'auto_37_graph') {
-
-        return (
-            <div className="min-h-screen bg-slate-50 relative pt-10">
-                <ExerciceLectureGraphique
-                    user={user}
-                    onFinish={onFinish}
-
-
-                    onQuit={onBack}
-
-
-                    onSound={onSound}
-                />
-            </div>
-        );
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceLectureGraphique user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
     }
-
-    // Dans StandardGame.jsx
-
     if (config.id === 'auto_38_graph2') {
-        return (
-            <div className="min-h-screen bg-slate-50 relative pt-10">
-                <ExerciceTableauValeursCourbe
-                    user={user}
-                    level={config.level}
-
-                    // 👇 C'EST ICI LA CORRECTION
-                    // On appelle la variable 'finalScore' pour ne pas confondre avec le 'score' du state
-                    onFinish={(finalScore) => {
-                        console.log("📤 StandardGame reçoit de l'enfant :", finalScore);
-                        onFinish(finalScore);
-                    }}
-
-                    onQuit={onBack}
-                    onSound={onSound}
-                />
-            </div>
-        );
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceTableauValeursCourbe user={user} level={config.level} onFinish={(s) => onFinish(s)} onQuit={onBack} onSound={onSound} /></div>;
     }
 
-
-
+    // =========================================================
+    // INITIALISATION DU JEU STANDARD
+    // =========================================================
     useEffect(() => {
         const initGame = async () => {
             let pool = [];
+            const generatorFunc = getGenerator(config.id); // On cherche dans le mapping
 
-            if (config.id === 'auto_39_algo') {
-                // On simule les paramètres car on ne lit pas Firebase
+            // --- CAS 1 : C'est un exercice mappé (Standard) ---
+            if (generatorFunc) {
+                // On essaie de récupérer des paramètres spécifiques depuis Firebase si nécessaire
+                // (Optionnel, pour l'instant on passe juste le niveau)
                 const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateAlgoQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_9_divisibilite') {
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateDivisibilityQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_10_vocabulaire_ops') {
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateVocabularyQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_11_simplifier_litteral') { // <-- AJOUTER
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateSimplifyExpressionQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_12_valeur_expression') { // <--- NOUVEAU BLOC
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateSubstitutionQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_13_dev_fact') { // <-- ID UTILISÉ DANS DATA.JS
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateDevelopFactorizeQuestion(params));
-                }
-            }
-            else if (config.id === 'auto_facto_simple') { // <--- L'ID DOIT MATCHER CELUI DANS data.js
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateFactoriseQuestion(params));
+
+                try {
+                    // Petite astuce : Si on veut surcharger les paramètres depuis Firebase pour un ID précis
+                    // On peut le faire ici, mais pour l'instant on reste simple.
+                    for (let i = 0; i < 10; i++) {
+                        pool.push(generatorFunc(params));
+                    }
+                } catch (e) {
+                    console.error("Erreur générateur pour " + config.id, e);
                 }
             }
 
-            else if (config.id === 'auto_31_moyenne') {
-                const params = { level: config.level };
-                for (let i = 0; i < 10; i++) {
-                    pool.push(generateMeanQuestion(params));
-                }
-            }
-            // =========================================================
-            // 1. MODES DE TABLES (Simple, Mixte, Division)
-            // =========================================================
-
-            // CAS SPÉCIAL : LE NOUVEAU CHOIX LIBRE (MIXTE)
-            if (config.mode === 'FREE_MIX') {
+            // --- CAS 2 : Mode Tables / Divisions ---
+            else if (config.mode === 'FREE_MIX') {
                 const { tables, modes } = config.id;
-                if (modes.mul) {
-                    tables.forEach(t => {
-                        if (QUESTIONS_TABLES[t]) pool = [...pool, ...QUESTIONS_TABLES[t]];
-                    });
-                }
-                if (modes.div) {
-                    tables.forEach(t => {
-                        if (QUESTIONS_DIVISIONS[t]) pool = [...pool, ...QUESTIONS_DIVISIONS[t]];
-                    });
-                }
+                if (modes.mul) tables.forEach(t => { if (QUESTIONS_TABLES[t]) pool = [...pool, ...QUESTIONS_TABLES[t]]; });
+                if (modes.div) tables.forEach(t => { if (QUESTIONS_DIVISIONS[t]) pool = [...pool, ...QUESTIONS_DIVISIONS[t]]; });
             }
-            // CAS CLASSIQUE (Tables ou Divisions)
             else if (config.mode.includes('TABLES') || config.mode.includes('DIVISIONS')) {
                 const SOURCE = config.mode.includes('DIVISIONS') ? QUESTIONS_DIVISIONS : QUESTIONS_TABLES;
                 if (Array.isArray(config.id)) {
@@ -199,78 +80,30 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                     if (SOURCE[config.id]) pool = [...SOURCE[config.id]];
                 }
             }
-            // =========================================================
-            // 2. EXERCICES (PROCÉDURAUX OU STATIQUES)
-            // =========================================================
+
+            // --- CAS 3 : Fallback (Ancien système procédural ou statique) ---
             else if (pool.length === 0) {
-                // Utilisation des fonctions Firebase importées (standard React)
-                const docRef = doc(db, "configs_exercices", config.id);
-
-                try {
-                    const snap = await getDoc(docRef);
-
-                    if (snap.exists() && snap.data()[config.level]) {
-                        const params = snap.data()[config.level];
-
-                        if (config.id === 'auto_1_ecriture_decimale_fractions') {
-                            for (let i = 0; i < 10; i++) pool.push(generateFractionQuestion(params));
-                        }
-                        else if (config.id === 'auto_2_comparaison_calcul_decimaux') {
-                            for (let i = 0; i < 10; i++) pool.push(generateDecimalQuestion(params));
-                        }
-                        else if (config.id === 'auto_3_fractions_calc') {
-                            for (let i = 0; i < 10; i++) pool.push(generateFractionOpsQuestion(params));
-                        }
-                        else if (config.id === 'auto_4_fraction_nombre') {
-                            for (let i = 0; i < 10; i++) pool.push(generateFractionOfNumberQuestion(params));
-                        }
-                        else if (config.id === 'auto_5_pourcentages') {
-                            for (let i = 0; i < 10; i++) pool.push(generatePercentQuestion(params));
-                        }
-                        else if (config.id === 'auto_6_formes_multiples') {
-                            for (let i = 0; i < 10; i++) pool.push(generateMultipleFormsQuestion(params));
-                        }
-                        else if (config.id === 'auto_7_ecriture_sci') {
-                            for (let i = 0; i < 10; i++) pool.push(generateScientificNotationQuestion(params));
-                        }
-                        else if (config.id === 'auto_8_carres_3eme') {
-                            for (let i = 0; i < 10; i++) pool.push(generateSquareQuestion(params));
-                        }
-                        else if (config.id === 'auto_31_moyenne') {
-                            const params = { level: config.level };
-                            for (let i = 0; i < 10; i++) {
-                                pool.push(generateMeanQuestion(params));
-                            }
-                        }
-
-                    }
-                    else {
-                        // Fallback : Base de données statique
-                        pool = QUESTIONS_DB[config.id]?.[config.level] || [];
-                    }
-                } catch (err) {
-                    console.error("Erreur config / Fallback", err);
-                    pool = QUESTIONS_DB[config.id]?.[config.level] || [];
-                }
+                // On regarde si c'est dans la DB statique
+                pool = QUESTIONS_DB[config.id]?.[config.level] || [];
             }
 
-            // =========================================================
-            // 3. PRÉPARATION DU JEU
-            // =========================================================
+            // --- PRÉPARATION DES QUESTIONS ---
             if (pool && pool.length > 0) {
                 const qList = [...pool]
-                    .sort(() => 0.5 - Math.random())
-                    .slice(0, 10)
+                    .sort(() => 0.5 - Math.random()) // Mélange des questions
+                    .slice(0, 10) // On en prend 10
                     .map(q => {
                         const answers = [...q.o];
-                        const correct = answers[0];
+                        const correct = answers[0]; // La convention est : la 1ère option est la bonne
                         return {
                             ...q,
-                            mixedAnswers: answers.sort(() => 0.5 - Math.random()),
+                            mixedAnswers: answers.sort(() => 0.5 - Math.random()), // Mélange des réponses
                             correctIndex: -1,
                             correctTxt: correct
                         };
                     });
+
+                // On retrouve l'index de la bonne réponse après mélange
                 qList.forEach(q => q.correctIndex = q.mixedAnswers.indexOf(q.correctTxt));
                 setQuestions(qList);
             } else {

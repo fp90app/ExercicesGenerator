@@ -223,3 +223,105 @@ export const XPHelpModal = ({ onClose }) => (
         </div>
     </div>
 );
+
+export const LoadingScreen = ({ message = "Chargement..." }) => (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 font-sans z-50 fixed inset-0">
+        <div className="relative">
+            {/* Cercle animé extérieur */}
+            <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+
+            {/* Icône centrale statique ou pulsante */}
+            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center animate-pulse">
+                <Icon name="lightning" weight="fill" className="text-indigo-600 text-xl" />
+            </div>
+        </div>
+
+        <h2 className="mt-6 text-slate-800 font-bold text-lg tracking-tight animate-pulse">
+            {message}
+        </h2>
+        <p className="text-slate-400 text-sm mt-1 font-medium">Récupération des données...</p>
+    </div>
+);
+
+export const PremiumModal = ({ onClose, onSubscribe }) => (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
+        <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
+
+            {/* Header Gold */}
+            <div className="bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 p-6 text-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+                <div className="relative z-10">
+                    <Icon name="crown" weight="fill" className="text-5xl text-white drop-shadow-md mb-2 mx-auto animate-bounce" />
+                    <h2 className="text-3xl font-black text-white drop-shadow-sm uppercase tracking-wider">Devenir Premium</h2>
+                    <p className="text-amber-900 font-bold text-sm opacity-90">Débloque ton plein potentiel pour le Brevet</p>
+                </div>
+                <button
+                    onClick={onClose}
+                    // MODIFICATION : 'top-4 right-4' pour descendre le bouton et l'écarter du bord
+                    // 'z-20' pour s'assurer qu'il est bien au-dessus de tout motif de fond
+                    className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-all rounded-full hover:bg-black/10 flex items-center justify-center z-20"
+                >
+                    <Icon name="x" size={24} weight="bold" />
+                </button>
+            </div>
+
+            {/* Corps de l'offre */}
+            <div className="p-6 md:p-8 bg-white">
+
+                {/* Comparatif */}
+                <div className="space-y-4 mb-8">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <span className="text-slate-500 font-medium">Accès aux exercices de base</span>
+                        <div className="flex gap-4 text-sm font-bold">
+                            <span className="text-slate-400">Gratuit</span>
+                            <span className="text-amber-500">Premium</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="infinity" className="text-indigo-500" /> Accès illimité (Brevets)</span>
+                        <div className="flex gap-8">
+                            <Icon name="x" className="text-slate-200" weight="bold" />
+                            <Icon name="check" className="text-emerald-500" weight="bold" />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="chart-line-up" className="text-blue-500" /> Statistiques avancées</span>
+                        <div className="flex gap-8">
+                            <Icon name="x" className="text-slate-200" weight="bold" />
+                            <Icon name="check" className="text-emerald-500" weight="bold" />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="medal" className="text-purple-500" /> Mode Survie & Classements</span>
+                        <div className="flex gap-8">
+                            <Icon name="x" className="text-slate-200" weight="bold" />
+                            <Icon name="check" className="text-emerald-500" weight="bold" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Prix et Bouton */}
+                <div className="text-center">
+                    <div className="mb-6">
+                        <span className="text-4xl font-black text-slate-800">29€</span>
+                        <span className="text-slate-400 font-bold"> / an</span>
+                        <p className="text-xs text-green-600 font-bold mt-1 bg-green-50 inline-block px-2 py-1 rounded">Paiement unique • Valable jusqu'en Juillet</p>
+                    </div>
+
+                    <button
+                        onClick={onSubscribe}
+                        className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg shadow-xl shadow-slate-200 hover:bg-indigo-600 hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
+                    >
+                        <span>Débloquer maintenant</span>
+                        <Icon name="credit-card" />
+                    </button>
+                    <p className="text-[10px] text-slate-400 mt-4">Paiement sécurisé via Stripe. Satisfait ou remboursé sous 14 jours.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+

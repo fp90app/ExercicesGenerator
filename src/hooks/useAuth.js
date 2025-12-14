@@ -1,38 +1,102 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     collection, query, where, getDocs, getDoc, doc, updateDoc, increment
 } from "firebase/firestore";
+// Imports nécessaires pour l'authentification Firebase (Email)
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { db } from '../firebase';
 import { AUTOMATISMES_DATA } from '../utils/data';
 
 export const useAuth = () => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const auth = getAuth();
 
-    // --- 1. GÉNÉRATION DES QUÊTES ---
+    // ====================================================================================
+    // 0. HELPER : GESTION DES DROITS (Restriction par Prof)
+    // ====================================================================================
+    const calculateAllowedIds = async (userData) => {
+        // Liste complète par défaut (Tout est autorisé si pas de restriction)
+        const ALL_EXOS = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
+
+        // Si l'élève n'a pas de prof ou est en mode autonome -> Tout ouvert
+        if (!userData.profId || userData.profId === 'autonome') {
+            return ALL_EXOS;
+        }
+
+        try {
+            const profSnap = await getDoc(doc(db, 'profs', userData.profId));
+
+            if (profSnap.exists()) {
+                const profData = profSnap.data();
+
+                // Si le prof n'a jamais configuré aucune classe -> Tout ouvert
+                if (!profData.classSettings) return ALL_EXOS;
+
+                // --- NETTOYAGE DU NOM DE CLASSE (Correctif "3A" vs "3a") ---
+                const studentClassClean = (userData.classe || "").trim();
+
+                // 1. Essai correspondance exacte
+                if (profData.classSettings[studentClassClean]) {
+                    return profData.classSettings[studentClassClean];
+                }
+
+                // 2. Essai correspondance insensible à la casse (Majuscules/Minuscules)
+                const configKey = Object.keys(profData.classSettings).find(
+                    key => key.trim().toUpperCase() === studentClassClean.toUpperCase()
+                );
+
+                if (configKey) {
+                    // Si on trouve une config (même vide = tout bloqué), on l'applique
+                    return profData.classSettings[configKey] || [];
+                } else {
+                    // Le prof a des configs, mais PAS pour cette classe précise.
+                    // Par défaut, on laisse tout ouvert pour ne pas bloquer l'élève par erreur.
+                    // (Vous pouvez changer cela en renvoyant [] si vous préférez tout bloquer par défaut)
+                    console.log(`Aucune config trouvée pour la classe "${studentClassClean}"`);
+                    return ALL_EXOS;
+                }
+            }
+        } catch (e) {
+            console.error("Erreur récupération droits prof", e);
+        }
+
+        // En cas d'erreur technique (réseau...), on laisse ouvert
+        return ALL_EXOS;
+    };
+
+    // ====================================================================================
+    // 1. HELPER : GÉNÉRATION DES QUÊTES JOURNALIÈRES
+    // ====================================================================================
     const checkAndGenerateQuests = async (currentUser) => {
         const today = new Date().toDateString();
         const userData = currentUser.data;
         const daily = userData.daily || {};
 
+        // Vérification sommaire de la validité des données existantes
         const isDataValid = daily.q1 && daily.q1.targets && daily.q1.targets.length > 0 && typeof daily.q1.targets[0] === 'object';
 
+        // Si les quêtes sont déjà générées pour aujourd'hui, on ne touche à rien
         if (daily.date === today && isDataValid) return currentUser;
 
+        // Gestion de la "Flamme" (Streak)
         let newStreak = daily.streak || 0;
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
 
+        // Si on a raté hier, la flamme retombe à 0 (sauf si c'est aujourd'hui)
         if (daily.date !== yesterday.toDateString() && daily.date !== today && daily.date) {
             newStreak = 0;
         }
 
+        // Génération des cibles aléatoires (Tables / Divisions)
         const allTables = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         const randomTargets = [];
 
         while (randomTargets.length < 3) {
             const val = allTables[Math.floor(Math.random() * allTables.length)];
             const type = Math.random() > 0.5 ? 'TABLES' : 'DIVISIONS';
+            // On évite les doublons
             const exists = randomTargets.some(t => t.val === val && t.type === type);
             if (!exists) randomTargets.push({ val, type });
         }
@@ -41,30 +105,110 @@ export const useAuth = () => {
             date: today,
             streak: newStreak,
             completed: false,
-            q1: { targets: randomTargets, progress: [], done: false },
-            q2: { done: false }
+            q1: { targets: randomTargets, progress: [], done: false }, // Quête Tables
+            q2: { done: false } // Quête Automatisme
         };
 
+        // Sauvegarde dans Firestore
         const col = currentUser.role === 'teacher' ? 'profs' : 'eleves';
-        await updateDoc(doc(db, col, currentUser.data.id), { daily: newDaily });
+        try {
+            await updateDoc(doc(db, col, currentUser.data.id), { daily: newDaily });
+        } catch (e) {
+            console.error("Erreur génération quêtes daily:", e);
+        }
 
         return { ...currentUser, data: { ...userData, daily: newDaily } };
     };
 
-    // --- 2. CONNEXION ---
+    // ====================================================================================
+    // 2. ÉCOUTEUR AUTHENTIFICATION (CORRECTIF ZOMBIE + DETECTION PROF)
+    // ====================================================================================
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                // L'utilisateur est connecté via Email (Firebase Auth)
+                try {
+                    const uid = firebaseUser.uid;
+
+                    // A. On cherche d'abord si c'est un ÉLÈVE
+                    let docRef = doc(db, 'eleves', uid);
+                    let snap = await getDoc(docRef);
+                    let role = 'student';
+
+                    // B. Si pas élève, on cherche si c'est un PROF (Correctif Admin)
+                    if (!snap.exists()) {
+                        docRef = doc(db, 'profs', uid);
+                        snap = await getDoc(docRef);
+                        if (snap.exists()) {
+                            role = 'teacher';
+                        }
+                    }
+
+                    if (snap.exists()) {
+                        const d = snap.data();
+
+                        let currentUser = {
+                            role: role,
+                            data: { ...d, id: uid }, // L'ID est l'UID Auth
+                            allowed: []
+                        };
+
+                        // Calcul des droits (seulement pour élèves)
+                        if (role === 'student') {
+                            currentUser.allowed = await calculateAllowedIds(d);
+                        } else {
+                            // Les profs ont accès à tout par défaut pour tester
+                            currentUser.allowed = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
+                        }
+
+                        // On génère les quêtes
+                        currentUser = await checkAndGenerateQuests(currentUser);
+
+                        // Mise à jour de l'état global
+                        setUser(currentUser);
+                    } else {
+                        // Cas Zombie : Utilisateur Auth connecté mais aucune fiche Firestore trouvée.
+                        // On laisse Dashboards.jsx gérer la création du compte de secours si besoin.
+                        console.warn("Auth OK mais pas de fiche Firestore trouvée.");
+                    }
+                } catch (e) {
+                    console.error("Erreur lors de la récupération du profil Auth :", e);
+                }
+            } else {
+                // Pas d'utilisateur Auth connecté.
+                // On ne force pas le logout ici pour permettre la connexion "Classe" (Pseudo).
+            }
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // ====================================================================================
+    // 3. LOGIN MANUEL (PSEUDO / CLASSE)
+    // ====================================================================================
     const login = async (identifiant, password) => {
         setLoading(true);
         const cleanId = identifiant.trim().toUpperCase();
         try {
-            // PROF
+            // A. Cas PROFESSEUR (Pseudo)
             const qProf = query(collection(db, 'profs'), where("identifiant", "==", cleanId));
             const snapProf = await getDocs(qProf);
+
             if (!snapProf.empty) {
                 const d = snapProf.docs[0].data();
                 if (d.password === password) {
                     let currentUser = {
                         role: 'teacher',
-                        data: { ...d, id: snapProf.docs[0].id, xp: d.xp || 0, tables: d.tables || {}, training: d.training || {}, survival_history: d.survival_history || {}, grand_slam_history: d.grand_slam_history || [], best_grand_slam: d.best_grand_slam || 999 }
+                        data: {
+                            ...d,
+                            id: snapProf.docs[0].id,
+                            // On assure des valeurs par défaut
+                            xp: d.xp || 0,
+                            tables: d.tables || {},
+                            training: d.training || {},
+                            daily: d.daily || {}
+                        }
                     };
                     currentUser = await checkAndGenerateQuests(currentUser);
                     setUser(currentUser);
@@ -72,36 +216,28 @@ export const useAuth = () => {
                     return;
                 }
             }
-            // ELEVE
+
+            // B. Cas ÉLÈVE CLASSE (Pseudo)
             const snapEleves = await getDocs(collection(db, 'eleves'));
             let found = null;
             snapEleves.forEach(docSnap => {
                 const d = docSnap.data();
-                if ((d.identifiant || d.code || "").toUpperCase() === cleanId) {
+                // On cherche par identifiant/code, en ignorant les comptes Email
+                if ((d.identifiant || d.code || "").toUpperCase() === cleanId && !d.email) {
                     if (d.password === password || !d.password) {
-                        found = { ...d, id: docSnap.id, nom: d.nom || "Élève", xp: d.xp || 0, tables: d.tables || {}, training: d.training || {}, survival_history: d.survival_history || {}, grand_slam_history: d.grand_slam_history || [], best_grand_slam: d.best_grand_slam || 999 };
+                        found = {
+                            ...d,
+                            id: docSnap.id,
+                            nom: d.nom || "Élève",
+                            xp: d.xp || 0
+                        };
                     }
                 }
             });
 
             if (found) {
-                let allowedIds = [];
-                if (found.profId) {
-                    const profSnap = await getDoc(doc(db, 'profs', found.profId));
-                    if (profSnap.exists()) {
-                        const profData = profSnap.data();
-                        const classeClean = found.classe ? found.classe.trim() : "";
-                        if (profData.classSettings && profData.classSettings[classeClean]) {
-                            allowedIds = profData.classSettings[classeClean];
-                        } else {
-                            allowedIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
-                        }
-                    }
-                } else {
-                    allowedIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
-                }
-
-                let currentUser = { role: 'student', data: found, allowed: allowedIds };
+                const allowed = await calculateAllowedIds(found);
+                let currentUser = { role: 'student', data: found, allowed: allowed };
                 currentUser = await checkAndGenerateQuests(currentUser);
                 setUser(currentUser);
             } else {
@@ -111,65 +247,61 @@ export const useAuth = () => {
         setLoading(false);
     };
 
-    // --- 3. REFRESH STUDENT ---
+    // ====================================================================================
+    // 4. LOGOUT (UNIFIÉ)
+    // ====================================================================================
+    const logout = async () => {
+        try {
+            await signOut(auth); // Déconnecte la session Firebase (Email)
+        } catch (e) { console.error("Erreur logout firebase", e); }
+        setUser(null); // Déconnecte la session locale (Classe)
+    };
+
+    // ====================================================================================
+    // 5. REFRESH STUDENT (Mise à jour des données après action)
+    // ====================================================================================
     const refreshStudent = async () => {
         if (user) {
-            setLoading(true);
             const col = user.role === 'teacher' ? 'profs' : 'eleves';
             const snap = await getDoc(doc(db, col, user.data.id));
 
             if (snap.exists()) {
                 const d = snap.data();
-                let allowedIds = [];
-
-                if (d.profId) {
-                    const profSnap = await getDoc(doc(db, 'profs', d.profId));
-                    if (profSnap.exists()) {
-                        const pd = profSnap.data();
-                        const classeClean = d.classe ? d.classe.trim() : "";
-                        if (pd.classSettings && pd.classSettings[classeClean]) {
-                            allowedIds = pd.classSettings[classeClean];
-                        } else {
-                            allowedIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
-                        }
-                    }
-                } else {
-                    allowedIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
-                }
-
-                let updatedUser = { ...user, data: { ...d, id: user.data.id }, allowed: allowedIds };
+                const allowed = user.role === 'student' ? await calculateAllowedIds(d) : user.allowed;
+                let updatedUser = { ...user, data: { ...d, id: user.data.id }, allowed: allowed };
                 updatedUser = await checkAndGenerateQuests(updatedUser);
                 setUser(updatedUser);
             }
-            setLoading(false);
         }
     };
 
-    // --- 4. SAUVEGARDE PROGRESSION ---
+    // ====================================================================================
+    // 6. SAVE PROGRESS (LA FONCTION COMPLÈTE DE JEU)
+    // ====================================================================================
     const saveProgress = async (type, id, level, score, extraData) => {
         if (!user) return;
         const col = user.role === 'teacher' ? 'profs' : 'eleves';
         const docRef = doc(db, col, user.data.id);
 
         let updates = {};
-        // On copie les données actuelles pour mettre à jour l'interface sans recharger
+        // On copie les données actuelles pour l'UI optimiste
         let newData = JSON.parse(JSON.stringify(user.data));
 
         let xpGain = 0;
         let xpDetails = { exo: 0, quest: 0, bonus: 0 };
         let questCompletedNow = false;
 
-        // On prépare l'objet daily (avec sécurité s'il n'existe pas)
+        // On prépare l'objet daily
         let dailyUpdate = newData.daily ? newData.daily : {};
         const todayStr = new Date().toDateString();
 
-        // =========================================================
+        // ---------------------------------------------------------
         // CAS 1 : MODE CHRONO (GRAND CHELEM)
-        // =========================================================
+        // ---------------------------------------------------------
         if (type === 'CHRONO') {
             const timeInSec = extraData / 1000;
 
-            // Mise à jour du record personnel (Pour le classement Chrono)
+            // Mise à jour du record personnel
             if (!newData.best_grand_slam || timeInSec < newData.best_grand_slam) {
                 updates.best_grand_slam = timeInSec;
                 newData.best_grand_slam = timeInSec;
@@ -177,21 +309,21 @@ export const useAuth = () => {
 
             // Historique (Garde les 5 meilleurs temps)
             let currentHistory = newData.grand_slam_history || [];
-            // Normalisation des anciennes données si nécessaire
             currentHistory = currentHistory.map(x => (typeof x === 'object' && x.val !== undefined) ? x : { val: x, date: null });
 
             const newEntry = { val: timeInSec, date: Date.now() };
-            const newHistory = [...currentHistory, newEntry].sort((a, b) => a.val - b.val).slice(0, 5); // Tri croissant (temps)
+            // Tri croissant (temps)
+            const newHistory = [...currentHistory, newEntry].sort((a, b) => a.val - b.val).slice(0, 5);
 
             updates.grand_slam_history = newHistory;
             newData.grand_slam_history = newHistory;
         }
 
-        // =========================================================
-        // CAS 2 : MODE SURVIE (L'OPTIMISATION EST ICI !)
-        // =========================================================
+        // ---------------------------------------------------------
+        // CAS 2 : MODE SURVIE
+        // ---------------------------------------------------------
         else if (type === 'SURVIVAL') {
-            // 1. Gestion de l'historique classique
+            // 1. Gestion de l'historique
             let currentHistory = newData.survival_history?.[id] || [];
             currentHistory = currentHistory.map(x => (typeof x === 'object' && x.val !== undefined) ? x : { val: x, date: null });
 
@@ -203,8 +335,7 @@ export const useAuth = () => {
             if (!newData.survival_history) newData.survival_history = {};
             newData.survival_history[id] = newHistory;
 
-            // 2. 🔥 OPTIMISATION CLASSEMENT (Nouveau !)
-            // On sauvegarde le meilleur score "à plat" pour faciliter le tri Firestore
+            // 2. Mise à jour des meilleurs scores globaux
             const currentBest = newData.best_scores?.[id] || 0;
             if (score > currentBest) {
                 updates[`best_scores.${id}`] = score;
@@ -213,13 +344,19 @@ export const useAuth = () => {
             }
         }
 
-        // =========================================================
+        // ---------------------------------------------------------
         // CAS 3 : EXERCICES CLASSIQUES & QUÊTES
-        // =========================================================
+        // ---------------------------------------------------------
         else {
+            // Seuil de réussite (9/10 pour tables, 8/10 pour le reste)
             const threshold = (type.includes('TABLES') || type.includes('DIVISIONS')) ? 9 : 8;
 
-            if (score >= threshold) {
+            // Pour le mode Mix Libre, l'ID peut être un objet, on évite de sauvegarder des stats précises qui planteraient
+            if (type === 'FREE_MIX') {
+                // On ne fait rien de spécial pour l'instant en terme de stats persistantes pour le free mix
+                // Sauf si vous aviez une logique spécifique XP ici
+            }
+            else if (score >= threshold) {
                 // --- A. BONUS SPÉCIAUX (TOUTES LES TABLES) ---
                 if (type === 'TABLES_ALL') {
                     if (dailyUpdate.allTablesDate !== todayStr) {
@@ -251,7 +388,7 @@ export const useAuth = () => {
                         xpDetails.exo = 10;
                     }
 
-                    // Gestion Quête Q1
+                    // Gestion Quête Q1 (Liste de tables à faire)
                     if (dailyUpdate.date === todayStr && !dailyUpdate.q1.done) {
                         const doneTargetId = `${type}_${id}`;
                         const isTarget = dailyUpdate.q1.targets.some(t => `${t.type}_${t.val}` === doneTargetId);
@@ -271,42 +408,45 @@ export const useAuth = () => {
                     }
                 }
 
-                // --- C. ENTRAÎNEMENT (TRAINING) ---
+                // --- C. ENTRAÎNEMENT (TRAINING / AUTOMATISMES) ---
                 else {
                     const safeLevel = parseInt(level);
-                    if (!newData.training) newData.training = {};
-                    if (!newData.training[id]) newData.training[id] = { 1: 0, 2: 0, 3: 0 };
+                    // Sécurité : si id est un objet (bug), on ignore
+                    if (typeof id === 'string') {
+                        if (!newData.training) newData.training = {};
+                        if (!newData.training[id]) newData.training[id] = { 1: 0, 2: 0, 3: 0 };
 
-                    // Mise à jour compteur
-                    updates[`training.${id}.${safeLevel}`] = increment(1);
-                    newData.training[id][safeLevel] = (newData.training[id][safeLevel] || 0) + 1;
+                        // Mise à jour compteur visuel
+                        updates[`training.${id}.${safeLevel}`] = increment(1);
+                        newData.training[id][safeLevel] = (newData.training[id][safeLevel] || 0) + 1;
 
-                    // Logique XP Caps (Visuel vs Mémoire)
-                    const countVisuel = newData.training[id][safeLevel];
-                    const countMemoire = newData.xp_caps?.[id]?.[safeLevel] || 0;
-                    const oldMax = Math.max(countVisuel - 1, countMemoire);
+                        // Logique XP Caps (Pour limiter l'XP à 3 fois par niveau, mémorisé à part)
+                        const countVisuel = newData.training[id][safeLevel];
+                        const countMemoire = newData.xp_caps?.[id]?.[safeLevel] || 0;
+                        const oldMax = Math.max(countVisuel - 1, countMemoire);
 
-                    if (oldMax < 3) {
-                        const gain = safeLevel * 10;
-                        xpGain += gain;
-                        xpDetails.exo = gain;
-
-                        updates[`xp_caps.${id}.${safeLevel}`] = oldMax + 1;
-                        if (!newData.xp_caps) newData.xp_caps = {};
-                        if (!newData.xp_caps[id]) newData.xp_caps[id] = {};
-                        newData.xp_caps[id][safeLevel] = oldMax + 1;
-                    }
-
-                    // Gestion Quête Q2
-                    if (dailyUpdate.date === todayStr && type === 'TRAINING' && !dailyUpdate.q2.done) {
-                        dailyUpdate.q2.done = true;
-                        questCompletedNow = true;
-
-                        // Bonus seulement si on n'a pas déjà farmé ce niveau
                         if (oldMax < 3) {
-                            let bonusQ = safeLevel === 3 ? 50 : (safeLevel === 2 ? 30 : 20);
-                            xpGain += bonusQ;
-                            xpDetails.quest = bonusQ;
+                            const gain = safeLevel * 10;
+                            xpGain += gain;
+                            xpDetails.exo = gain;
+
+                            updates[`xp_caps.${id}.${safeLevel}`] = oldMax + 1;
+                            if (!newData.xp_caps) newData.xp_caps = {};
+                            if (!newData.xp_caps[id]) newData.xp_caps[id] = {};
+                            newData.xp_caps[id][safeLevel] = oldMax + 1;
+                        }
+
+                        // Gestion Quête Q2 (Faire un automatisme)
+                        if (dailyUpdate.date === todayStr && type === 'TRAINING' && !dailyUpdate.q2.done) {
+                            dailyUpdate.q2.done = true;
+                            questCompletedNow = true;
+
+                            // Bonus de quête seulement si on n'a pas déjà farmé ce niveau à fond
+                            if (oldMax < 3) {
+                                let bonusQ = safeLevel === 3 ? 50 : (safeLevel === 2 ? 30 : 20);
+                                xpGain += bonusQ;
+                                xpDetails.quest = bonusQ;
+                            }
                         }
                     }
                 }
@@ -347,7 +487,11 @@ export const useAuth = () => {
         return { questCompletedNow, xpGainTotal: xpGain, details: xpDetails };
     };
 
-    // --- 5. RESET PROF ---
+    // ====================================================================================
+    // 7. UTILS (RESET & MAINTENANCE)
+    // ====================================================================================
+
+    // Remettre à zéro le compte prof (pour tests)
     const resetTeacherAccount = async () => {
         if (user.role !== 'teacher') return;
         const docRef = doc(db, 'profs', user.data.id);
@@ -356,13 +500,14 @@ export const useAuth = () => {
         setUser({ ...user, data: { ...user.data, ...emptyData } });
     };
 
-    // --- 6. RESET TRAINING ---
+    // Réinitialiser un exercice spécifique
     const resetTraining = async (id) => {
         if (!user) return;
         const t = user.data.training?.[id] || {};
         const c = user.data.xp_caps?.[id] || {};
         const getVal = (obj, key) => (obj && obj[key] !== undefined) ? obj[key] : 0;
 
+        // On conserve les "caps" (mémoire XP) pour ne pas permettre de regagner de l'XP en boucle
         const newCaps = {
             1: Math.max(getVal(t, 1), getVal(c, 1)),
             2: Math.max(getVal(t, 2), getVal(c, 2)),
@@ -384,5 +529,15 @@ export const useAuth = () => {
         setUser({ ...user, data: newData });
     };
 
-    return { user, loading, login, setUser, saveProgress, refreshStudent, resetTeacherAccount, resetTraining };
+    return {
+        user,
+        loading,
+        login,
+        logout,
+        setUser,
+        saveProgress,
+        refreshStudent,
+        resetTeacherAccount,
+        resetTraining
+    };
 };

@@ -4,14 +4,14 @@ import { db } from "../firebase";
 import { Icon } from './UI';
 import { timeAgo } from '../utils/mathGenerators';
 
-import { AUTOMATISMES_DATA, PROCEDURAL_EXOS, QUESTIONS_DB } from '../utils/data';
+// --- MODIFICATION : On importe le Hook dynamique ---
+import { PROCEDURAL_EXOS, QUESTIONS_DB } from '../utils/data';
+// AUTOMATISMES_DATA a été retiré car remplacé par useProgram
 import { BREVET_DATA } from '../utils/brevetData';
-
-
+import { useProgram } from '../hooks/useProgram'; // <--- NOUVEAU HOOK
 
 const LISTE_CLASSES = ["3A", "3B", "3C", "3D", "3E", "4A", "4B", "4C", "4D", "4E", "5A", "5B", "5C", "5D", "6A", "6B", "6C", "6D", "Sans classe"];
 
-// --- UTILITAIRES STATS (Centralisés) ---
 // --- UTILITAIRES STATS (Centralisés) ---
 const calculateStats = (s) => {
     // 1. Tables (Max 22)
@@ -40,36 +40,26 @@ const calculateStats = (s) => {
         if (times.length > 0) bestChrono = Math.min(...times);
     }
 
-    // 5. Brevets (Nouveau) - VERSION SÉCURISÉE
+    // 5. Brevets
     let brevetsValidated = 0;
     let brevetDetails = [];
 
-    // On vérifie que brevet_history existe et que c'est bien un objet
     if (s.brevet_history && typeof s.brevet_history === 'object') {
         Object.entries(s.brevet_history).forEach(([id, data]) => {
             let noteSur20 = 0;
             let title = id;
-
-            // Gestion de la compatibilité (anciens formats vs nouveaux)
             if (typeof data === 'number') {
                 noteSur20 = data;
             } else if (typeof data === 'object' && data !== null) {
-                // On s'assure que markOver20 est traité comme un nombre
                 noteSur20 = parseFloat(data.markOver20 || 0);
                 title = data.title || id;
             }
-
-            // On compte comme "Validé" si > 12 (vous pouvez changer ce seuil)
-            if (noteSur20 > 12) {
-                brevetsValidated++;
-            }
-
-            // On ajoute à la liste des détails pour la modale
+            if (noteSur20 > 12) brevetsValidated++;
             brevetDetails.push({ id, title, note: noteSur20 });
         });
     }
 
-    // 6. Détails XP pour la modale
+    // 6. Détails XP
     let xpDetails = { tables: 0, div: 0, auto: 0, quest: 0 };
     if (s.tables) Object.values(s.tables).forEach(c => xpDetails.tables += Math.min(c, 3) * 10);
     if (s.divisions) Object.values(s.divisions).forEach(c => xpDetails.div += Math.min(c, 3) * 10);
@@ -83,7 +73,7 @@ const calculateStats = (s) => {
     return { tablesCount, skillsCount, maxSurvival, bestChrono, xpDetails, brevetsValidated, brevetDetails };
 };
 
-// --- MODALE IMPORT MASSE ---
+// --- MODALE IMPORT MASSE (INCHANGÉE) ---
 const MassImportModal = ({ onClose, classesList, onImport, results }) => {
     const [text, setText] = useState("");
     const [classe, setClasse] = useState(classesList[0]);
@@ -161,7 +151,7 @@ const MassImportModal = ({ onClose, classesList, onImport, results }) => {
     );
 };
 
-// --- MODALE LISTE GLOBALE ---
+// --- MODALE LISTE GLOBALE (INCHANGÉE) ---
 const GlobalStudentListModal = ({ onClose, onLink, currentTeacherId }) => {
     const [allStudents, setAllStudents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -171,7 +161,6 @@ const GlobalStudentListModal = ({ onClose, onLink, currentTeacherId }) => {
     useEffect(() => {
         const fetchAll = async () => {
             try {
-                // CORRECTION : window.db -> db
                 const snap = await getDocs(collection(db, "eleves"));
                 const list = [];
                 snap.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
@@ -230,25 +219,27 @@ const GlobalStudentListModal = ({ onClose, onLink, currentTeacherId }) => {
     );
 };
 
-// Dans TeacherTools.jsx
-
-// 1. On ajoute user, setUser et onSound dans les paramètres
-// DANS src/components/TeacherTools.jsx
-
+// --- MODALE PROGRESSION (MISE A JOUR CMS) ---
 const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
     const [selectedClass, setSelectedClass] = useState(LISTE_CLASSES[0]);
     const [activeIds, setActiveIds] = useState([]);
     const [loadingConfig, setLoadingConfig] = useState(false);
 
+    // --- 1. Utilisation du Hook pour le programme ---
+    const { program, loading: programLoading } = useProgram();
+
     // Chargement initial des données
     useEffect(() => {
+        if (programLoading) return; // On attend le chargement
+
         if (user.data.classSettings && user.data.classSettings[selectedClass]) {
             setActiveIds(user.data.classSettings[selectedClass]);
         } else {
-            const allIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
+            // Par défaut, on active tout ce qui est dans le programme chargé
+            const allIds = program.flatMap(cat => cat.exos.map(e => e.id));
             setActiveIds(allIds);
         }
-    }, [selectedClass]); // On retire 'user.data' des dépendances pour éviter les boucles
+    }, [selectedClass, program, programLoading]);
 
     const toggleExo = (id) => {
         if (activeIds.includes(id)) setActiveIds(prev => prev.filter(x => x !== id));
@@ -256,7 +247,7 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
     };
 
     const toggleAll = (activate) => {
-        if (activate) setActiveIds(AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id)));
+        if (activate) setActiveIds(program.flatMap(cat => cat.exos.map(e => e.id)));
         else setActiveIds([]);
     };
 
@@ -265,31 +256,14 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
         try {
             const profRef = doc(db, 'profs', user.data.id);
 
-            // 1. Sauvegarde dans Firebase (C'est le plus important)
+            // Sauvegarde dans Firebase
             await updateDoc(profRef, { [`classSettings.${selectedClass}`]: activeIds });
 
-            // 2. Mise à jour de l'objet user local
-            // ATTENTION : C'est souvent cette partie qui force le rechargement de la page.
-            // Je commente cette mise à jour globale pour empêcher la fenêtre de se fermer.
-            // Les données sont sauvées dans Firebase, c'est l'essentiel.
-
-            /* const newData = { ...user.data };
-            if (!newData.classSettings) newData.classSettings = {};
-            newData.classSettings[selectedClass] = activeIds;
-            setUser({ ...user, data: newData }); 
-            */
-
-            // On met à jour l'objet user en mémoire SEULEMENT dans ce composant si nécessaire,
-            // mais ici on a juste besoin que ça ne crash pas.
-            // Si vous avez besoin que la modale reflète le changement immédiatement si on change de classe,
-            // on modifie directement user.data sans passer par setUser (astuce temporaire)
+            // Mise à jour locale optimiste
             if (!user.data.classSettings) user.data.classSettings = {};
             user.data.classSettings[selectedClass] = activeIds;
 
             onSound('WIN');
-            // Pas de onClose() !
-
-            // Feedback visuel temporaire sur le bouton ou alerte
             alert(`✅ Progression enregistrée pour la ${selectedClass} !`);
 
         } catch (e) {
@@ -310,26 +284,31 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                    <div className="flex gap-2 mb-4">
-                        <button onClick={() => toggleAll(true)} className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded">Tout Activer</button>
-                        <button onClick={() => toggleAll(false)} className="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded">Tout Désactiver</button>
-                    </div>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {AUTOMATISMES_DATA.map((cat, i) => (
-                            <div key={i} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                <h4 className={`font-bold text-${cat.color}-600 uppercase text-xs mb-3 pb-2 border-b`}>{cat.title}</h4>
-                                <div className="space-y-2">
-                                    {cat.exos.map(exo => (
-                                        <label key={exo.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded">
-                                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${activeIds.includes(exo.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>{activeIds.includes(exo.id) && <Icon name="check" size={12} weight="bold" />}</div>
-                                            <input type="checkbox" className="hidden" checked={activeIds.includes(exo.id)} onChange={() => toggleExo(exo.id)} />
-                                            <span className={`text-sm ${activeIds.includes(exo.id) ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>{exo.title}</span>
-                                        </label>
-                                    ))}
-                                </div>
+                    {programLoading ? <div className="text-center p-10 text-slate-400">Chargement du programme...</div> : (
+                        <>
+                            <div className="flex gap-2 mb-4">
+                                <button onClick={() => toggleAll(true)} className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded">Tout Activer</button>
+                                <button onClick={() => toggleAll(false)} className="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded">Tout Désactiver</button>
                             </div>
-                        ))}
-                    </div>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {/* --- 2. Boucle sur le programme dynamique --- */}
+                                {program.map((cat, i) => (
+                                    <div key={i} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        <h4 className={`font-bold text-${cat.color}-600 uppercase text-xs mb-3 pb-2 border-b`}>{cat.title}</h4>
+                                        <div className="space-y-2">
+                                            {cat.exos.map(exo => (
+                                                <label key={exo.id} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded">
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${activeIds.includes(exo.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>{activeIds.includes(exo.id) && <Icon name="check" size={12} weight="bold" />}</div>
+                                                    <input type="checkbox" className="hidden" checked={activeIds.includes(exo.id)} onChange={() => toggleExo(exo.id)} />
+                                                    <span className={`text-sm ${activeIds.includes(exo.id) ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>{exo.title}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
                 <div className="p-4 border-t bg-white rounded-b-3xl flex justify-end">
                     <button onClick={saveConfig} disabled={loadingConfig} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform">{loadingConfig ? "..." : "Enregistrer"}</button>
@@ -339,27 +318,21 @@ const ProgressionModal = ({ onClose, user, setUser, onSound }) => {
     );
 };
 
-
-
 const getLevelColor = (count) => {
-    // 3 réussites : Terminé (Vert foncé + Blanc + Ombre)
     if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
-
-    // 2 réussites : Avancé (Vert moyen)
     if (count === 2) return "bg-emerald-300 text-emerald-900 border-emerald-400";
-
-    // 1 réussite : Débuté (Vert très clair)
     if (count === 1) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-
-    // 0 réussite : Pas fait (Gris)
     return "bg-slate-100 text-slate-300 border-slate-200";
 };
 
-// --- MODALE DÉTAIL ÉLÈVE (UNIQUE ET COMPLÈTE) ---
+// --- MODALE DÉTAIL ÉLÈVE (MISE A JOUR CMS) ---
 const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete, onUnshare, colleagues, user }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({ nom: "", identifiant: "", password: "", classe: "", groupe: "" });
     const [shareInput, setShareInput] = useState("");
+
+    // --- 1. Utilisation du Hook pour le programme ---
+    const { program, loading: programLoading } = useProgram();
 
     useEffect(() => {
         if (s) {
@@ -382,14 +355,14 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
 
     // --- LOGIQUE AJOUTÉE : Calcul des droits de l'élève ---
     let studentAllowedIds = [];
-    const allIds = AUTOMATISMES_DATA.flatMap(cat => cat.exos.map(e => e.id));
+    // Si programme chargé, on récupère tous les IDs, sinon tableau vide en attendant
+    const allIds = program ? program.flatMap(cat => cat.exos.map(e => e.id)) : [];
     const studentClass = s.classe ? s.classe.trim() : "";
 
-    // On vérifie la config du prof connecté (user) pour la classe de l'élève
     if (studentClass && user.data.classSettings && user.data.classSettings[studentClass]) {
         studentAllowedIds = user.data.classSettings[studentClass];
     } else {
-        studentAllowedIds = allIds; // Par défaut tout est ouvert
+        studentAllowedIds = allIds;
     }
     // -----------------------------------------------------
 
@@ -445,52 +418,83 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                                 </div>
                             </div>
 
-                            {/* --- SECTION AJOUTÉE : PROGRESSION AUTOMATISMES --- */}
+                            {/* --- SECTION AUTOMATISMES DYNAMIQUE --- */}
                             <h3 className="font-bold text-slate-800 text-sm uppercase mt-6 mb-2 flex items-center gap-2">
                                 <Icon name="lightning" className="text-indigo-500" /> Progression Automatismes
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {AUTOMATISMES_DATA.map((cat, i) => (
-                                    <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                                        <div className={`bg-${cat.color}-50 px-3 py-2 font-bold text-${cat.color}-800 text-xs uppercase border-b border-${cat.color}-100`}>{cat.title}</div>
-                                        <div className="p-2 space-y-1">
-                                            {cat.exos.map(exo => {
-                                                // Vérifications techniques et droits
-                                                const isTechnicallyReady = PROCEDURAL_EXOS.includes(exo.id) || (QUESTIONS_DB[exo.id] && QUESTIONS_DB[exo.id][1] && QUESTIONS_DB[exo.id][1].length > 0);
-                                                const isAllowedForStudent = studentAllowedIds.includes(exo.id);
-                                                const isAvailable = isTechnicallyReady && isAllowedForStudent;
+                                {programLoading ? <div className="text-center p-4 text-slate-400">Chargement...</div> : program.map((cat, i) => {
 
-                                                // Si bloqué -> Cadenas
-                                                if (!isAvailable) {
+                                    // --- 1. CALCUL DU POURCENTAGE ---
+                                    let maxPoints = cat.exos.length * 9;
+                                    let currentPoints = 0;
+
+                                    cat.exos.forEach(exo => {
+                                        const exoData = s.training?.[exo.id] || {};
+                                        [1, 2, 3].forEach(lvl => {
+                                            currentPoints += Math.min(exoData[lvl] || 0, 3);
+                                        });
+                                    });
+
+                                    const progressPct = maxPoints === 0 ? 0 : Math.round((currentPoints / maxPoints) * 100);
+
+                                    return (
+                                        <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
+
+                                            {/* HEADER */}
+                                            <div className={`bg-${cat.color}-50 px-3 py-2 border-b border-${cat.color}-100 relative`}>
+                                                <div className="flex justify-between items-center relative z-10">
+                                                    <span className={`font-bold text-${cat.color}-800 text-xs uppercase`}>{cat.title}</span>
+                                                    <span className={`text-[10px] font-bold text-${cat.color}-600 bg-white/50 px-1.5 py-0.5 rounded`}>
+                                                        {progressPct}%
+                                                    </span>
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 w-full h-1 bg-white/50">
+                                                    <div
+                                                        className={`h-full bg-${cat.color}-500 transition-all duration-1000`}
+                                                        style={{ width: `${progressPct}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-2 space-y-1">
+                                                {cat.exos.map(exo => {
+                                                    // Vérifications
+                                                    const isTechnicallyReady = PROCEDURAL_EXOS.includes(exo.id) || (QUESTIONS_DB[exo.id] && QUESTIONS_DB[exo.id][1] && QUESTIONS_DB[exo.id][1].length > 0);
+                                                    const isAllowedForStudent = studentAllowedIds.includes(exo.id);
+                                                    const isAvailable = isTechnicallyReady && isAllowedForStudent;
+
+                                                    // Si bloqué -> Cadenas
+                                                    if (!isAvailable) {
+                                                        return (
+                                                            <div key={exo.id} className="flex justify-between items-center p-2 rounded opacity-40 bg-slate-50">
+                                                                <span className="text-xs text-slate-400 flex items-center gap-2"><Icon name="lock-key" /> {exo.title}</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    // Affichage progression
+                                                    const progress = s.training?.[exo.id] || {};
                                                     return (
-                                                        <div key={exo.id} className="flex justify-between items-center p-2 rounded opacity-40 bg-slate-50">
-                                                            <span className="text-xs text-slate-400 flex items-center gap-2"><Icon name="lock-key" /> {exo.title}</span>
+                                                        <div key={exo.id} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded transition-colors">
+                                                            <span className="text-xs font-bold text-slate-700 truncate mr-2" title={exo.title}>{exo.title}</span>
+                                                            <div className="flex gap-1 shrink-0">
+                                                                {[1, 2, 3].map(lvl => {
+                                                                    const count = progress[lvl] || 0;
+                                                                    return (
+                                                                        <div key={lvl} className={`w-5 h-5 rounded border flex items-center justify-center text-[9px] font-bold ${getLevelColor(count)}`}>
+                                                                            {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
+                                                                        </div>
+                                                                    )
+                                                                })}
+                                                            </div>
                                                         </div>
                                                     );
-                                                }
-
-                                                // Affichage progression
-                                                const progress = s.training?.[exo.id] || {};
-                                                return (
-                                                    <div key={exo.id} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded">
-                                                        <span className="text-xs font-bold text-slate-700 truncate mr-2" title={exo.title}>{exo.title}</span>
-                                                        <div className="flex gap-1 shrink-0">
-                                                            {[1, 2, 3].map(lvl => {
-                                                                const count = progress[lvl] || 0;
-                                                                return (
-                                                                    <div key={lvl} className={`w-5 h-5 rounded border flex items-center justify-center text-[9px] font-bold ${getLevelColor(count)}`}>
-                                                                        {/* MODIFICATION ICI : On stylise un peu mieux l'icône check */}
-                                                                        {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
-                                                                    </div>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             {/* -------------------------------------------------- */}
 
@@ -560,8 +564,8 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
     );
 };
 
-// --- COMPOSANT PRINCIPAL ---
-export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUser }) => {
+// --- COMPOSANT PRINCIPAL (INCHANGÉ) ---
+export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUser, onOpenAdmin }) => {
     const [students, setStudents] = useState([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
@@ -580,7 +584,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
     // CHARGEMENT INITIAL
     useEffect(() => {
         const fetchProfs = async () => {
-            // CORRECTION : window.db -> db
             const snap = await getDocs(collection(db, 'profs'));
             const list = [];
             snap.forEach(doc => { if (doc.id !== user.data.id) list.push({ id: doc.id, ...doc.data() }); });
@@ -593,7 +596,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
     const loadStudents = async () => {
         setLoading(true);
         try {
-            // CORRECTION : window.db -> db et imports directs
             const q1 = query(collection(db, "eleves"), where("profId", "==", user.data.id));
             const q2 = query(collection(db, "eleves"), where("sharedWith", "array-contains", user.data.id));
             const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
@@ -629,7 +631,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
     const handleDeleteStudent = async (studentId, studentName) => {
         if (confirm(`Supprimer définitivement ${studentName} ?`)) {
             try {
-                // CORRECTION : window.db -> db
                 await deleteDoc(doc(db, "eleves", studentId));
                 setStudents(prev => prev.filter(s => s.id !== studentId));
                 setSelectedStudent(null);
@@ -640,7 +641,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
 
     const handleEditStudent = async (studentId, updatedData) => {
         try {
-            // CORRECTION : window.db -> db
             await updateDoc(doc(db, "eleves", studentId), updatedData);
             setStudents(prev => prev.map(s => s.id === studentId ? { ...s, ...updatedData } : s));
             setSelectedStudent(prev => ({ ...prev, ...updatedData }));
@@ -654,7 +654,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
         const names = namesList.split('\n').filter(n => n.trim() !== "");
         const results = [];
 
-        // CORRECTION : window.db -> db
         const allStudentsSnap = await getDocs(collection(db, "eleves"));
         const existingIds = new Set();
         allStudentsSnap.forEach(doc => existingIds.add(doc.data().identifiant));
@@ -676,7 +675,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
                 let password = "";
                 for (let k = 0; k < 6; k++) password += chars.charAt(Math.floor(Math.random() * chars.length));
 
-                // CORRECTION : window.db -> db
                 await addDoc(collection(db, "eleves"), {
                     nom: `${nom} ${prenom}`,
                     identifiant: uniqueId,
@@ -723,8 +721,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
     const classes = [...new Set([...LISTE_CLASSES, ...students.map(s => s.classe)])].sort().filter(c => c !== "-");
     const groupes = [...new Set(students.map(s => s.groupe).filter(g => g))].sort();
 
-
-
     const handleGlobalExport = async () => {
         if (filtered.length === 0) {
             alert("Aucun élève à exporter dans la liste actuelle.");
@@ -743,7 +739,6 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
             await navigator.clipboard.writeText(csvContent);
             alert("📋 Liste copiée dans le presse-papier !");
         } catch (err) {
-            // Fallback si le presse-papier est bloqué
             console.error("Erreur copie : ", err);
             prompt("Le copier-coller automatique a échoué. Copiez le texte ci-dessous :", csvContent);
         }
@@ -777,6 +772,7 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
                         <p className="text-slate-500">Connecté en tant que <span className="font-bold">{user.data.nom}</span></p>
                     </div>
                     <div className="flex flex-wrap gap-3">
+
                         <button onClick={onBackToGame} className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-700"><Icon name="game-controller" /> Accéder aux exercices</button>
                         <button onClick={() => { setImportResults(null); setShowMassImport(true); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-purple-700"><Icon name="users-three" /> Ajouter des élèves</button>
                         <button onClick={() => setShowGlobalList(true)} className="bg-orange-100 text-orange-700 border border-orange-200 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-orange-200"><Icon name="link" /> Récupérer des élèves</button>
@@ -790,13 +786,14 @@ export const TeacherDashboard = ({ user, onLogout, onBackToGame, onSound, setUse
                             <Icon name="sliders-horizontal" /> Progression
                         </button>
 
-
-
-
+                        {/* On vérifie si le prof a le droit isAdmin */}
+                        {user.data.isAdmin === true && (
+                            <button onClick={onOpenAdmin} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-black border-2 border-slate-700 shadow-md transform hover:scale-105 transition-all">
+                                <Icon name="lock-key" weight="fill" /> ZONE ADMIN
+                            </button>
+                        )}
                         <button onClick={onLogout} className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-bold hover:bg-slate-300">Déconnexion</button>
                     </div>
-
-
                 </header>
 
                 {/* TABLEAU */}

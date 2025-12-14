@@ -1,13 +1,18 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useSound } from './hooks/useSound';
-import { MuteButton } from './components/UI';
+import { MuteButton, LoadingScreen } from './components/UI';
 import { TeacherDashboard } from './components/TeacherTools';
-import { Login, StudentDashboard } from './components/Dashboards.jsx';
+import { StudentDashboard } from './components/Dashboards.jsx';
+import { Login } from './components/Login.jsx';
+import Landing from './components/Landing';
+import { Toaster, toast } from 'react-hot-toast';
+
 
 // --- IMPORTS FIREBASE ---
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
+import AdminPanel from './components/AdminPanel';
 
 // --- IMPORTS DES COMPOSANTS DE JEU ---
 import { Game } from './components/Game';
@@ -25,25 +30,53 @@ import ExercicePythagore from './components/games/ExercicePythagore';
 import { BREVET_DATA } from './utils/brevetData.js';
 
 export default function App() {
-  const { user, loading, login, saveProgress, setUser, refreshStudent, resetTeacherAccount, resetTraining } = useAuth();
+  const { user, loading, login, logout, saveProgress, setUser, refreshStudent, resetTeacherAccount, resetTraining } = useAuth();
   const { playSound } = useSound();
   const [view, setView] = useState('LOGIN');
   const [activeTab, setActiveTab] = useState('HOME');
   const [gameConfig, setGameConfig] = useState(null);
   const [muted, setMuted] = useState(false);
+  const [authMode, setAuthMode] = useState('LANDING');
+  const handleGoToLogin = () => {
+    setAuthMode('LOGIN');
+    playSound('CLICK');
+  };
 
   useEffect(() => {
+    // 1. Détection de l'URL secrète
+    if (window.location.pathname === '/admin-secret') {
+      setView('ADMIN_SECRET');
+      return; // On arrête là, on ne redirige pas ailleurs
+    }
+
+    // 2. Comportement normal (Login -> Dashboard)
     if (user) {
-      // --- CORRECTION ICI ---
-      // On ne redirige vers le dashboard QUE si on est sur l'écran de login.
-      // Si on est déjà en jeu (view === 'GAME'), on ne fait rien pour ne pas couper l'écran de fin.
       if (view === 'LOGIN') {
         setView('DASHBOARD');
       }
     } else {
       setActiveTab('HOME');
     }
-  }, [user]); // On garde uniquement user en dépendance
+  }, [user]);
+
+  useEffect(() => {
+    // On vérifie si l'URL contient "?payment_success=true"
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('payment_success')) {
+      // 1. On joue le son de victoire
+      playSound('WIN');
+
+      // 2. On affiche un message (tu pourras faire une belle modale plus tard)
+      alert("🎉 Félicitations ! Ton compte est maintenant PREMIUM !\n\nProfite de l'accès illimité à tous les contenus.");
+
+      // 3. On nettoie l'URL pour ne pas réafficher le message si on rafraîchit la page
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // 4. Force le rechargement de l'utilisateur pour être sûr que le statut Premium est à jour localement
+      window.location.reload();
+    }
+  }, []);
 
   const triggerSound = (type) => {
     playSound(type, muted);
@@ -174,17 +207,28 @@ export default function App() {
     if (result && result.xpGainTotal > 0) {
       setTimeout(() => {
         triggerSound('WIN');
-        let msg = `Bravo ! Tu as gagné +${result.xpGainTotal} XP !\n`;
-        if (result.details?.exo > 0) msg += `\n💪 Exercice : +${result.details.exo} XP`;
-        if (result.details?.quest > 0) msg += `\n🎯 Objectif Quête : +${result.details.quest} XP`;
-        if (result.details?.bonus > 0) msg += `\n🔥 Bonus final : +${result.details.bonus} XP`;
-        if (result.questCompletedNow) msg += `\n\n🎉 QUÊTE TERMINÉE !`;
-        alert(msg);
+
+        // On crée un message riche (JSX)
+        toast.success(
+          <div className="text-center">
+            <div className="font-black text-lg mb-1">Bravo ! +{result.xpGainTotal} XP</div>
+            <div className="text-sm opacity-90 space-y-1">
+              {result.details?.exo > 0 && <div>💪 Exercice : +{result.details.exo} XP</div>}
+              {result.details?.quest > 0 && <div className="text-purple-600 font-bold">🎯 Quête : +{result.details.quest} XP</div>}
+              {result.details?.bonus > 0 && <div className="text-orange-500 font-bold">🔥 Bonus : +{result.details.bonus} XP</div>}
+              {result.questCompletedNow && <div className="mt-2 text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded font-bold">🎉 QUÊTE TERMINÉE !</div>}
+            </div>
+          </div>,
+          { duration: 5000, icon: '🌟' }
+        );
       }, 500);
     }
     else if (score >= 9) {
       setTimeout(() => {
-        alert("Bravo pour le score ! \n\nTu n'as pas gagné d'XP car :\n1. Tu as déjà validé cet exercice 3 fois.\n2. Ce n'était pas une cible de quête active.");
+        toast("Score parfait ! Mais tu as déjà validé cet exercice 3 fois (pas d'XP).", {
+          icon: '👏',
+          duration: 4000
+        });
       }, 500);
     }
   };
@@ -201,48 +245,79 @@ export default function App() {
 
   if (loading && view === 'LOGIN') return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400">Chargement...</div>;
 
-  return (
-    <>
-      <MuteButton muted={muted} toggle={() => setMuted(!muted)} />
-      {view === 'LOGIN' && <Login onLogin={login} onSound={triggerSound} />}
+  // --- AFFICHAGE (RENDU) ---
 
-      {view === 'ADMIN' && <TeacherDashboard
-        user={user}
-        onLogout={() => { setUser(null); setView('LOGIN'); }}
-        onBackToGame={() => { setView('DASHBOARD'); setActiveTab('HOME'); }}
-        onSound={triggerSound}
-        onReset={resetTeacherAccount}
-        setUser={setUser}
-      />}
+  // 1. Écran de chargement global (Auth + Chargement initial)
+  if (loading) {
+    return <LoadingScreen message="Démarrage..." />;
+  }
 
-      {view === 'DASHBOARD' && <StudentDashboard
-        user={user}
-        onPlay={handlePlay}
-        onLogout={() => { setUser(null); setView('LOGIN'); }}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        loading={loading}
-        onAdmin={() => setView('ADMIN')}
-        onSound={triggerSound}
-        onResetTraining={resetTraining}
-      />}
+  // 2. Si l'utilisateur est CONNECTÉ
+  if (user) {
+    return (
+      <>
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              borderRadius: '16px',
+              background: '#333',
+              color: '#fff',
+              fontFamily: 'sans-serif',
+              fontWeight: 'bold',
+            },
+            success: {
+              style: { background: '#ecfdf5', color: '#065f46', border: '2px solid #10b981' },
+            },
+            error: {
+              style: { background: '#fef2f2', color: '#991b1b', border: '2px solid #ef4444' },
+            },
+          }}
+        />
+        <MuteButton muted={muted} toggle={() => setMuted(!muted)} />
 
-      <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">Chargement du jeu...</div>}>
+        {/* Panneau Admin Secret */}
+        {view === 'ADMIN_SECRET' && <AdminPanel user={user} onBack={() => setView('ADMIN')} />}
 
-        {view === 'GAME' && (
-          // --- ROUTEUR DES MODES DE JEU ---
+        {/* Dashboard Professeur */}
+        {view === 'ADMIN' && (
+          <TeacherDashboard
+            user={user}
+            onLogout={() => { logout(); setView('LOGIN'); setAuthMode('LANDING'); }}
+            onBackToGame={() => { setView('DASHBOARD'); setActiveTab('HOME'); }}
+            onSound={triggerSound}
+            onReset={resetTeacherAccount}
+            setUser={setUser}
+            onOpenAdmin={() => setView('ADMIN_SECRET')}
+          />
+        )}
 
-          // 1. MODE BREVET
-          gameConfig?.mode === 'BREVET' ? (
-            <BrevetGame
-              subject={gameConfig.subject}
-              onFinish={handleBrevetFinish} // CORRECTION : On passe la fonction de sauvegarde
-              onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
-            />
-          ) :
+        {/* Dashboard Élève */}
+        {view === 'DASHBOARD' && (
+          <StudentDashboard
+            user={user}
+            onPlay={handlePlay}
+            onLogout={() => { logout(); setView('LOGIN'); setAuthMode('LANDING'); }}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            loading={loading} // Ici on passe le loading global
+            onAdmin={() => setView('ADMIN')}
+            onSound={triggerSound}
+            onResetTraining={resetTraining}
+          />
+        )}
 
-            // 2. EXERCICES SPÉCIFIQUES
-            gameConfig?.id === 'auto_26_thales' ? (
+        {/* Zone de Jeu (Suspense pour chargement dynamique) */}
+        <Suspense fallback={<div className="p-10 text-center font-bold text-slate-400">Chargement du jeu...</div>}>
+
+          {view === 'GAME' && (
+            gameConfig?.mode === 'BREVET' ? (
+              <BrevetGame
+                subject={gameConfig.subject}
+                onFinish={handleBrevetFinish}
+                onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+              />
+            ) : gameConfig?.id === 'auto_26_thales' ? (
               <ExerciceThales
                 key={`thales-${gameConfig.level}`}
                 level={gameConfig.level}
@@ -251,69 +326,80 @@ export default function App() {
                 onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                 onSound={triggerSound}
               />
-            ) :
-              gameConfig?.id === 'auto_25_pythagore' ? (
-                <ExercicePythagore
-                  key={`pythagore-${gameConfig.level}`}
-                  level={gameConfig.level}
-                  user={user}
-                  onFinish={handleFinish}
-                  onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
-                  onSound={triggerSound}
-                />
-              ) :
-                gameConfig?.id === 'auto_37_graph' ? (
-                  <ExerciceLectureGraphique
-                    key={`graph-${gameConfig.level}`}
-                    user={user}
-                    level={gameConfig.level}
-                    onFinish={handleFinish}
-                    onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
-                    onSound={triggerSound}
-                  />
-                ) :
-                  gameConfig?.id === 'auto_38_graph2' ? (
-                    <ExerciceTableauValeursCourbe
-                      key={`graph-${gameConfig.level}`}
-                      user={user}
-                      level={gameConfig.level}
-                      onFinish={handleFinish}
-                      onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
-                      onSound={triggerSound}
-                    />
-                  ) :
+            ) : gameConfig?.id === 'auto_25_pythagore' ? (
+              <ExercicePythagore
+                key={`pythagore-${gameConfig.level}`}
+                level={gameConfig.level}
+                user={user}
+                onFinish={handleFinish}
+                onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                onSound={triggerSound}
+              />
+            ) : gameConfig?.id === 'auto_37_graph' ? (
+              <ExerciceLectureGraphique
+                key={`graph-${gameConfig.level}`}
+                user={user}
+                level={gameConfig.level}
+                onFinish={handleFinish}
+                onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                onSound={triggerSound}
+              />
+            ) : gameConfig?.id === 'auto_38_graph2' ? (
+              <ExerciceTableauValeursCourbe
+                key={`graph-${gameConfig.level}`}
+                user={user}
+                level={gameConfig.level}
+                onFinish={handleFinish}
+                onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                onSound={triggerSound}
+              />
+            ) : (
+              <Game
+                user={user}
+                config={gameConfig}
+                level={gameConfig.level}
+                onFinish={handleFinish}
+                onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                onSound={triggerSound}
+              />
+            )
+          )}
 
-                    // 3. JEU STANDARD
-                    (
-                      <Game
-                        user={user}
-                        config={gameConfig}
-                        level={gameConfig.level}
-                        onFinish={handleFinish}
-                        onBack={() => { setView('DASHBOARD'); setGameConfig(null); }}
-                        onSound={triggerSound}
-                      />
-                    )
-        )}
+          {view === 'SURVIVAL_GAME' && (
+            <SurvivalGameLogic
+              modeId={gameConfig.modeId}
+              onFinish={(s) => handleSurvivalFinish(gameConfig.modeId, s)}
+              onSound={triggerSound}
+              user={user}
+            />
+          )}
 
-        {view === 'SURVIVAL_GAME' && (
-          <SurvivalGameLogic
-            modeId={gameConfig.modeId}
-            onFinish={(s) => handleSurvivalFinish(gameConfig.modeId, s)}
-            onSound={triggerSound}
-            user={user}
-          />
-        )}
+          {view === 'CHRONO' && (
+            <ChronoGame
+              user={user}
+              onFinish={handleChronoFinish}
+              onBack={() => setView('DASHBOARD')}
+              onSound={triggerSound}
+            />
+          )}
+        </Suspense>
+      </>
+    );
+  }
 
-        {view === 'CHRONO' && (
-          <ChronoGame
-            user={user}
-            onFinish={handleChronoFinish}
-            onBack={() => setView('DASHBOARD')}
-            onSound={triggerSound}
-          />
-        )}
-      </Suspense>
-    </>
-  );
-};
+  // 3. Si l'utilisateur n'est PAS CONNECTÉ
+
+  // Mode LOGIN (Formulaire)
+  if (authMode === 'LOGIN') {
+    return (
+      <Login
+        onLogin={login}
+        onSound={triggerSound}
+        onBack={() => setAuthMode('LANDING')} // Bouton retour vers la Landing
+      />
+    );
+  }
+
+  // Par défaut : LANDING PAGE (Vitrine)
+  return <Landing onConnect={handleGoToLogin} />;
+}

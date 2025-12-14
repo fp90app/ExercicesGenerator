@@ -1,22 +1,87 @@
 import React, { useState, useEffect } from 'react';
 
-import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal } from './UI';
-import { AUTOMATISMES_DATA, TABLES_LIST, TRAINING_MODULES, QUESTIONS_DB, PROCEDURAL_EXOS } from '../utils/data';
-import { BREVET_DATA } from '../utils/brevetData';
+// 1. Imports pour la Base de Données (Firestore)
+import { collection, getDocs, doc, getDoc, query, where, setDoc } from "firebase/firestore";
 
-// --- UTILITAIRES COULEURS (Mis à jour pour matcher la vue Prof) ---
+// 2. Imports pour l'Authentification (Auth) - C'EST ICI LA CORRECTION
+import { getAuth } from "firebase/auth";
+
+// 3. Import de tes instances initialisées
+import { db } from "../firebase";
+
+import { useProgram } from '../hooks/useProgram';
+
+// Initialisation de l'auth pour ce composant
+const auth = getAuth();
+
+
+
+import { usePremium } from '../hooks/usePremium';
+import { toast } from 'react-hot-toast';
+
+import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal, LoadingScreen, PremiumModal } from './UI';
+import { AUTOMATISMES_DATA, TABLES_LIST } from '../utils/data';
+
+// --- UTILITAIRES COULEURS ---
 const getLevelColor = (count) => {
-    // 3 réussites : Terminé (Vert foncé + Blanc + Ombre)
     if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
-    // 2 réussites : Avancé (Vert moyen)
     if (count === 2) return "bg-emerald-300 text-emerald-900 border-emerald-400";
-    // 1 réussite : Débuté (Vert très clair)
     if (count === 1) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    // 0 réussite : Pas fait (Gris standard)
-    return "bg-slate-100 text-slate-300 border-slate-200 hover:border-indigo-300 hover:text-indigo-400";
+    return "bg-white text-slate-700 border-slate-300 hover:border-indigo-400 hover:text-indigo-600 hover:shadow-md";
 };
 
-// --- WIDGET QUÊTES ---
+// ============================================================================
+// [NOUVEAU] COMPOSANT : BANNIÈRE D'ANNONCE
+// Récupère le message depuis Firestore (config/general)
+// ============================================================================
+
+
+const NewsBanner = () => {
+    const [news, setNews] = useState(null);
+
+    useEffect(() => {
+        const fetchNews = async () => {
+            try {
+                const docRef = doc(db, "config", "general");
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    // On n'affiche que s'il y a un message non vide
+                    if (data.newsMessage && data.newsMessage.trim() !== "") {
+                        setNews(data);
+                    }
+                }
+            } catch (e) {
+                console.error("Erreur news", e);
+            }
+        };
+        fetchNews();
+    }, []);
+
+    if (!news) return null;
+
+    // Mapping des couleurs (blue, emerald, amber, red, purple)
+    const colorClasses = {
+        blue: "bg-blue-100 text-blue-800 border-blue-200",
+        emerald: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        amber: "bg-amber-100 text-amber-800 border-amber-200",
+        red: "bg-red-100 text-red-800 border-red-200",
+        purple: "bg-purple-100 text-purple-800 border-purple-200",
+    };
+
+    const style = colorClasses[news.newsColor] || colorClasses.blue;
+
+    return (
+        <div className={`mx-auto max-w-5xl mb-6 p-4 rounded-xl border flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 ${style}`}>
+            <Icon name="megaphone" weight="fill" className="text-xl shrink-0" />
+            <span className="font-bold text-sm md:text-base">{news.newsMessage}</span>
+        </div>
+    );
+};
+
+// ============================================================================
+// WIDGET QUÊTES (Inchangé)
+// ============================================================================
 export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
     if (!daily || !daily.q1) return null;
     const allFinished = daily.completed;
@@ -67,7 +132,9 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
     );
 };
 
-// --- SURVIVAL VIEW ---
+// ============================================================================
+// SURVIVAL VIEW (Inchangé)
+// ============================================================================
 export const SurvivalView = ({ user, onPlay, onBack }) => {
     const getMyHistory = (mode) => {
         let myRaw = user.data.survival_history?.[mode];
@@ -102,10 +169,6 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
                             <p className="text-slate-400 text-xs">{m.desc}</p>
                         </button>
                         <Leaderboard title="Mon Historique" data={getMyHistory(m.id)} unit="" />
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
-                            <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
-                            <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
-                        </div>
                     </div>
                 ))}
             </div>
@@ -113,30 +176,9 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
     );
 };
 
-// --- LOGIN ---
-export const Login = ({ onLogin, onSound }) => {
-    const [id, setId] = useState("");
-    const [pwd, setPwd] = useState("");
-    const [showPwd, setShowPwd] = useState(false);
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center fade-in">
-                <div className="text-6xl mb-4">🚀</div>
-                <h1 className="text-3xl font-black text-slate-800 mb-6">Maths Signoret</h1>
-                <form onSubmit={e => { e.preventDefault(); onSound('CLICK'); onLogin(id, pwd); }} className="space-y-4">
-                    <input type="text" autoFocus value={id} onChange={e => setId(e.target.value)} className="w-full p-3 border-2 rounded-xl font-bold text-center uppercase outline-none focus:border-indigo-500" placeholder="Identifiant" />
-                    <div className="relative">
-                        <input type={showPwd ? "text" : "password"} className="w-full p-2 border rounded text-center" placeholder="Mot de passe (optionnel)" value={pwd} onChange={e => setPwd(e.target.value)} />
-                        <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600"><Icon name={showPwd ? "eye-slash" : "eye"} /></button>
-                    </div>
-                    <button className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-transform hover:scale-105">Connexion</button>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-// --- VUE TABLES ---
+// ============================================================================
+// TABLES VIEW (Inchangé)
+// ============================================================================
 export const TablesView = ({ user, onPlay, onBack, onSound }) => {
     const [selected, setSelected] = useState([]);
     const [ops, setOps] = useState({ mul: true, div: true });
@@ -220,10 +262,6 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                         <button onClick={() => onPlay('CHRONO', null)} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black py-4 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 mb-6">LANCER LE CHRONO</button>
                         <div className="space-y-2">
                             <Leaderboard title="Mon Historique" data={myHistory} unit="s" />
-                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
-                                <Icon name="users" className="text-slate-300 text-xl mb-1 mx-auto" />
-                                <p className="text-[10px] text-slate-400 uppercase font-bold">Classement global en maintenance</p>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -232,14 +270,68 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
     );
 };
 
+// ============================================================================
+// [MISE À JOUR] BREVET LIST : CONNECTÉE FIREBASE + FILTRE BROUILLON
+// ============================================================================
+// ============================================================================
+// [MISE À JOUR] BREVET LIST : GESTION DES ACCÈS (CMS)
+// ============================================================================
+const BrevetList = ({ onPlay, onBack, user, setShowPremiumModal }) => {
+    const [sujets, setSujets] = useState([]);
+    const [contentRules, setContentRules] = useState({});
+    const [loading, setLoading] = useState(true);
 
-// --- VUE LISTE DES SUJETS DE BREVET --- //
-// Modification: Ajout de la prop 'user' pour récupérer l'historique
-// --- VUE LISTE DES SUJETS DE BREVET --- //
-const BrevetList = ({ onPlay, onBack, user }) => {
+    // Vérifie si l'utilisateur est un prof ou admin (pour voir les brouillons et les contenus bloqués)
+    const isAdmin = user.role === 'teacher' || user.data?.role === 'teacher' || user.data?.isAdmin;
+
+    // On vérifie le statut Premium de l'élève (via le hook ou les props, ici on recalcul simple)
+    // Note: Idéalement on devrait passer isPremium en prop, mais on peut le redéduire ici si user est à jour
+    // Pour être sûr, on utilise usePremium si possible, ou on se base sur user.data.status
+    // Simplification : On regarde user.data.status + VIP (si tu as passé user à jour)
+    const isPremium = user.data?.status === 'premium' || (user.data?.profId && user.data.profId !== 'autonome' && user.data.profId.length > 5);
+    // ^ Attention: Cette détection simplifiée suppose que tous les profs sont VIP. 
+    // Si tu veux la vraie détection, passe 'isPremium' en prop depuis StudentDashboard.
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // 1. Charger les Règles de Contenu
+                const rulesSnap = await getDoc(doc(db, "config", "content"));
+                if (rulesSnap.exists()) setContentRules(rulesSnap.data());
+
+                // 2. Charger les Sujets
+                const querySnapshot = await getDocs(collection(db, "annales"));
+                const list = querySnapshot.docs.map(doc => doc.data());
+
+                // Filtrage initial (Brouillons)
+                const filteredList = list.filter(sujet => {
+                    if (sujet.published !== false) return true; // Publié
+                    return isAdmin; // Brouillon visible seulement par admin
+                });
+
+                filteredList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
+                setSujets(filteredList);
+            } catch (error) {
+                console.error("Erreur chargement:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [isAdmin]);
+
+    if (loading) return <div className="p-10 text-center font-bold text-slate-400 animate-pulse">Chargement des sujets...</div>;
+
+    if (sujets.length === 0) return (
+        <div className="p-10 text-center">
+            <p className="text-slate-500 mb-4">Aucun sujet disponible.</p>
+            <button onClick={onBack} className="text-indigo-600 font-bold hover:underline">Retour</button>
+        </div>
+    );
+
     return (
         <div className="fade-in pb-12">
-            {/* Bouton Retour */}
             <button onClick={onBack} className="mb-6 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600 transition-colors">
                 <Icon name="arrow-left" /> Retour au menu
             </button>
@@ -249,37 +341,51 @@ const BrevetList = ({ onPlay, onBack, user }) => {
                     <span className="bg-emerald-100 text-emerald-600 p-2 rounded-xl text-2xl"><Icon name="graduation-cap" /></span>
                     Annales du Brevet
                 </h2>
-                <p className="text-slate-500 max-w-2xl">
-                    Entraîne-toi sur des sujets réels. Prends le temps de bien lire les énoncés.
-                    La calculatrice est autorisée pour la partie problèmes.
-                </p>
+                {isAdmin && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 mb-2">
+                        <Icon name="eye" /> Mode Prof : Vous voyez tout (Brouillons & Bloqués).
+                    </div>
+                )}
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {BREVET_DATA.map(subject => {
-                    // --- 1. RÉCUPÉRATION DU SCORE ---
+                {sujets.map(subject => {
                     const userHistory = user.data?.brevet_history?.[subject.id];
                     const bestScore = userHistory ? userHistory.markOver20 : null;
+                    const isDraft = subject.published === false;
+
+                    // --- LOGIQUE D'ACCÈS ---
+                    const ruleKey = `brevet_${subject.id}`;
+                    // Par défaut, les brevets sont PREMIUM sauf si spécifié autrement
+                    const rule = contentRules[ruleKey] || 'PREMIUM';
+
+                    const isLocked = rule === 'LOCKED';
+                    const isPremiumContent = rule === 'PREMIUM';
+
+                    // L'élève a-t-il le droit d'entrer ?
+                    // 1. Si LOCKED : Personne ne rentre (sauf Admin)
+                    // 2. Si PREMIUM : Il faut être Premium (sauf Admin)
+                    const accessDenied = !isAdmin && (isLocked || (isPremiumContent && !isPremium));
+
+                    // Si c'est verrouillé, on l'affiche différemment
+                    if (isLocked && !isAdmin) return null; // Option A : On cache totalement les sujets bloqués aux élèves
 
                     return (
-                        <div key={subject.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative">
+                        <div key={subject.id} className={`bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative ${isDraft || isLocked ? 'border-dashed border-slate-300 opacity-90' : 'border-slate-200'}`}>
 
-                            {/* En-tête visuel */}
+                            {/* BANDEAUX */}
+                            <div className="absolute top-0 right-0 z-20 flex flex-col items-end">
+                                {isDraft && <div className="bg-slate-800 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl mb-1">BROUILLON</div>}
+                                {isLocked && <div className="bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl mb-1">FERMÉ</div>}
+                                {!isAdmin && isPremiumContent && !isPremium && <div className="bg-amber-400 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl shadow-sm flex items-center gap-1"><Icon name="crown" weight="fill" /> PREMIUM</div>}
+                            </div>
+
                             <div className="h-28 bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden group-hover:bg-indigo-50 transition-colors">
-                                {/* Motif de fond léger */}
                                 <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                                <Icon name="graduation-cap" className={`text-7xl transition-colors duration-500 transform group-hover:scale-110 ${isDraft || isLocked ? 'text-slate-300' : 'text-slate-200 group-hover:text-indigo-200'}`} />
 
-                                {/* MODIFICATION ICI : Icône plus grosse, plus claire et changée pour "graduation-cap" */}
-                                <Icon name="graduation-cap" className="text-7xl text-slate-200 group-hover:text-indigo-200 transition-colors duration-500 transform group-hover:scale-110" />
-
-                                {/* MODIFICATION ICI : Le badge "18 pts" a été supprimé */}
-
-                                {/* Badge Score (reste affiché s'il existe) */}
-                                {bestScore && (
-                                    <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border ${parseFloat(bestScore) >= 12
-                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                        : 'bg-orange-100 text-orange-700 border-orange-200'
-                                        }`}>
+                                {bestScore && !accessDenied && (
+                                    <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border ${parseFloat(bestScore) >= 12 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
                                         Note : {bestScore}/20
                                     </div>
                                 )}
@@ -288,48 +394,73 @@ const BrevetList = ({ onPlay, onBack, user }) => {
                             <div className="p-6 flex-1 flex flex-col">
                                 <div className="mb-4">
                                     <h3 className="text-xl font-bold text-slate-800 mb-1">{subject.title}</h3>
-                                    <p className="text-sm text-slate-500 leading-snug">{subject.description}</p>
-                                </div>
-
-                                {/* Détails du contenu */}
-                                <div className="flex gap-2 mb-6">
-                                    {subject.parts.map((part, i) => (
-                                        <span key={i} className="text-[10px] uppercase font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded">
-                                            {part.title.split(':')[0]}
-                                        </span>
-                                    ))}
+                                    <p className="text-sm text-slate-500 leading-snug">{subject.description || "Sujet complet"}</p>
                                 </div>
 
                                 <div className="mt-auto">
                                     <button
-                                        onClick={() => onPlay('BREVET', subject.id)}
-                                        className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 shadow-lg"
+                                        onClick={() => {
+                                            if (accessDenied) {
+                                                if (isPremiumContent && !isPremium) {
+                                                    // Si c'est juste une question d'argent, on ouvre la modale
+                                                    setShowPremiumModal(true);
+                                                } else {
+                                                    // Si c'est LOCKED
+                                                    toast.error("Ce sujet est temporairement indisponible.");
+                                                }
+                                            } else {
+                                                onPlay('BREVET', subject.id);
+                                            }
+                                        }}
+                                        className={`w-full text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg 
+                                            ${accessDenied
+                                                ? (isPremiumContent ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-400 cursor-not-allowed')
+                                                : (isDraft ? 'bg-slate-500 hover:bg-slate-600' : 'bg-slate-900 hover:bg-indigo-600')
+                                            }`}
                                     >
-                                        <Icon name="play" weight="fill" /> {bestScore ? "Recommencer" : "Commencer"}
+                                        {accessDenied ? (
+                                            isPremiumContent ? <><Icon name="crown" weight="fill" /> Débloquer</> : <><Icon name="lock-key" /> Indisponible</>
+                                        ) : (
+                                            <><Icon name={isDraft ? "wrench" : "play"} weight="fill" /> {bestScore ? "Recommencer" : "Commencer"}</>
+                                        )}
                                     </button>
                                 </div>
                             </div>
                         </div>
                     );
                 })}
-
-                {/* Carte "Bientôt" pour remplir si vide */}
-                <div className="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-6 text-slate-400 min-h-[300px]">
-                    <Icon name="clock" size={32} className="mb-2 opacity-50" />
-                    <span className="font-bold text-sm">D'autres sujets arrivent...</span>
-                </div>
             </div>
         </div>
     );
 };
-
-
-// =========================================================
-// 4. STUDENT DASHBOARD (MAIN) - VERSION COMPACTE & ALIGNÉE
-// =========================================================
-export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveTab, loading, onAdmin, onSound, onResetTraining }) => {
+// ============================================================================
+// STUDENT DASHBOARD (MAIN)
+// ============================================================================
+export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveTab, loading: globalLoading, onAdmin, onSound, onResetTraining }) => {
     const [showXPInfo, setShowXPInfo] = useState(false);
+    const [contentRules, setContentRules] = useState({});
+    const { program, loading: programLoading } = useProgram();
 
+    useEffect(() => {
+        // On charge la config de contenu
+        const loadRules = async () => {
+            try {
+                const snap = await getDoc(doc(db, "config", "content"));
+                if (snap.exists()) setContentRules(snap.data());
+            } catch (e) { console.error(e); }
+        };
+        loadRules();
+    }, []);
+    // On récupère aussi le 'loading' du hook premium
+    // NOUVEAU : On passe 'user' en paramètre
+    const { isPremium, loading: premiumLoading } = usePremium(user);
+
+    const [showPremiumModal, setShowPremiumModal] = useState(false);
+
+    // SÉCURITÉ : Si on charge les données globales OU le statut premium, on affiche le loader
+    if (globalLoading || premiumLoading) {
+        return <LoadingScreen message="Vérification de ton compte..." />;
+    }
     const menuStyles = {
         amber: { container: "border-b-amber-100 hover:border-amber-500", iconBox: "bg-amber-100 text-amber-600", footer: "text-amber-600" },
         indigo: { container: "border-b-indigo-100 hover:border-indigo-500", iconBox: "bg-indigo-100 text-indigo-600", footer: "text-indigo-600" },
@@ -352,21 +483,41 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     };
 
     const getStatus = (id, lvl) => {
-        if (user.role !== 'teacher' && user.allowed && !user.allowed.includes(id)) return 'LOCKED';
-        const isProcedural = PROCEDURAL_EXOS.includes(id);
-        const isStaticValid = QUESTIONS_DB[id] && QUESTIONS_DB[id][lvl] && QUESTIONS_DB[id][lvl].length >= 10;
-        if (!isProcedural && !isStaticValid) return 'EMPTY';
+        // 1. Détection : L'élève a-t-il un prof ?
+        // On vérifie profId. S'il existe et n'est pas 'autonome', c'est un élève de classe.
+        const hasTeacher = user.data?.profId && user.data.profId !== 'autonome';
+
+        // 2. FILTRAGE PROF (Priorité Absolue)
+        if (hasTeacher) {
+            // Si l'objet 'allowed' n'existe pas (bug de chargement), on bloque par sécurité.
+            // OU Si l'exercice n'est pas dans la liste des autorisés.
+            if (!user.allowed || !user.allowed.includes(id)) {
+                return 'LOCKED';
+            }
+        }
+
+        // 3. PROGRESSION PÉDAGOGIQUE (Si l'exercice est autorisé)
+
+        // Le niveau 1 est toujours ouvert pédagogiquement
         if (lvl === 1) return 'OPEN';
-        const prev = user.data.training[id]?.[lvl - 1] || 0;
+
+        // Pour 2 et 3, on regarde si le niveau d'avant est validé
+        const prev = user.data.training?.[id]?.[lvl - 1] || 0;
         return prev > 0 ? 'OPEN' : 'LOCKED';
     };
 
     const handleClick = (id, lvl) => {
         onSound('CLICK');
         const status = getStatus(id, lvl);
-        if (status === 'EMPTY') alert("En construction");
-        else if (status === 'LOCKED') alert(`🔒 Finis d'abord le niveau ${lvl - 1} !`);
-        else onPlay('TRAINING', id, lvl);
+
+        if (status === 'LOCKED') {
+            // Toast d'erreur avec animation "secousse"
+            toast.error(`🔒 Finis d'abord le niveau ${lvl - 1} !`, {
+                style: { animation: 'shake 0.5s' } // Petit effet bonus si tu as défini keyframes shake
+            });
+        } else {
+            onPlay('TRAINING', id, lvl);
+        }
     };
 
     return (
@@ -382,27 +533,35 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     <div className="flex items-center gap-2 md:gap-3">
                         {user.role === 'teacher' && <button onClick={onAdmin} className="bg-slate-800 text-white w-8 h-8 md:w-auto md:px-3 md:py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-700"><Icon name="crown" /><span className="hidden md:inline">Profs</span></button>}
                         <button onClick={() => { onSound('CLICK'); setShowXPInfo(true); }} className="bg-amber-50 text-amber-700 px-2 py-1 md:px-3 rounded-full text-xs md:text-sm font-bold border border-amber-100 flex items-center gap-1 hover:bg-amber-100 hover:scale-105 transition-all cursor-pointer"><Icon name="star-fill" /> {user.data.xp}</button>
+                        {/* Si l'élève n'est PAS premium, on affiche le bouton d'appel à l'action */}
+                        {!isPremium && (
+                            <button
+                                onClick={() => { onSound('CLICK'); setShowPremiumModal(true); }}
+                                className="bg-gradient-to-r from-amber-300 to-yellow-400 text-yellow-900 px-3 py-1 md:px-4 rounded-full text-xs md:text-sm font-black border border-yellow-500/30 flex items-center gap-1 hover:scale-105 transition-transform shadow-sm animate-pulse"
+                            >
+                                <Icon name="crown" weight="fill" />
+                                <span className="hidden md:inline">PREMIUM</span>
+                            </button>
+                        )}
                         <button onClick={onLogout} className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100"><Icon name="sign-out" /></button>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto p-3 md:p-4 py-4 md:py-8">
+
+                {/* --- [NOUVEAU] : NEWS BANNER --- */}
+                {activeTab === 'HOME' && <NewsBanner />}
+
                 {activeTab === 'HOME' && <SchoolHeader />}
                 {activeTab === 'HOME' && user.data.daily && <DailyQuestsWidget daily={user.data.daily} onPlay={onPlay} onGoToAuto={() => setActiveTab('AUTOMATISMES')} />}
 
                 {activeTab === 'HOME' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 fade-in">
-                        <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Record : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas de chrono"} />
+
                         <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions" : "notion"; return count > 0 ? `${count} ${label}` : "Aucun exercice"; }} />
-                        <MenuCard
-                            icon="graduation-cap" // Changement d'icône
-                            title="Brevet" // Changement de titre
-                            desc="Sujets complets"
-                            color="emerald" // On garde le vert ou on change
-                            onClick={() => setActiveTab('BREVET')} // Nouvelle clé pour l'onglet
-                            footer={`${BREVET_DATA.length} sujet${BREVET_DATA.length > 1 ? 's' : ''} disponible${BREVET_DATA.length > 1 ? 's' : ''}`}
-                        />
+                        <MenuCard icon="graduation-cap" title="Brevet" desc="Sujets complets" color="emerald" onClick={() => setActiveTab('BREVET')} footer="Annales officielles" />
+                        <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Record : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas de chrono"} />
                         <MenuCard icon="fire" title="Survie" desc="Défis chronométrés." color="red" onClick={() => setActiveTab('SURVIVAL')} footer={() => { const h = user.data.survival_history || {}; const getBest = (k) => Math.max(0, ...(h[k]?.map(x => (typeof x === 'object' ? x.val : x)) || [])); const s1 = getBest('EXPLORATEUR'); if (s1 === 0) return "Aucun record"; return `Record Expl. : ${s1}`; }} />
                     </div>
                 )}
@@ -414,114 +573,200 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                         <button onClick={() => setActiveTab('HOME')} className="mb-2 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            {AUTOMATISMES_DATA.map((cat, i) => (
-                                <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
-                                    {/* Header Compact */}
-                                    <div className={`bg-${cat.color}-50 px-3 py-2 border-b border-${cat.color}-100 flex justify-between items-center`}>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`p-1.5 rounded-lg bg-white text-${cat.color}-600 shadow-sm`}>
-                                                <Icon name="lightning" weight="fill" className="text-sm" />
+                            {program.map((cat, i) => {
+
+                                // --- CALCUL DE LA PROGRESSION ---
+                                // Chaque exercice vaut 9 points (3 niveaux x 3 étoiles max)
+                                let maxPoints = cat.exos.length * 9;
+                                let currentPoints = 0;
+
+                                cat.exos.forEach(exo => {
+                                    const exoData = user.data.training?.[exo.id] || {};
+                                    // On additionne les réussites (max 3 par niveau)
+                                    [1, 2, 3].forEach(lvl => {
+                                        currentPoints += Math.min(exoData[lvl] || 0, 3);
+                                    });
+                                });
+
+                                const progressPct = maxPoints === 0 ? 0 : Math.round((currentPoints / maxPoints) * 100);
+
+                                return (
+                                    <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
+
+                                        {/* HEADER AVEC BARRE DE PROGRESSION */}
+                                        <div className={`bg-${cat.color}-50 px-3 py-2 border-b border-${cat.color}-100 flex justify-between items-center relative`}>
+
+                                            {/* Contenu Header */}
+                                            <div className="flex items-center gap-2 relative z-10">
+                                                <div className={`p-1.5 rounded-lg bg-white text-${cat.color}-600 shadow-sm`}>
+                                                    <Icon name="lightning" weight="fill" className="text-sm" />
+                                                </div>
+                                                <div>
+                                                    <h3 className={`font-black text-${cat.color}-800 text-sm md:text-base leading-none`}>
+                                                        {cat.title.replace(/^[IVX]+\.\s*/, '')}
+                                                    </h3>
+                                                    {/* Petit texte de pourcentage */}
+                                                    <div className={`text-[10px] font-bold text-${cat.color}-600/70 mt-0.5`}>
+                                                        {progressPct}% complété
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className={`font-black text-${cat.color}-800 text-sm md:text-base leading-none`}>{cat.title.replace(/^[IVX]+\.\s*/, '')}</h3>
+                                            <span className={`text-[10px] font-bold text-${cat.color}-600 bg-white/50 px-2 py-0.5 rounded-full relative z-10`}>
+                                                {cat.exos.length} exos
+                                            </span>
+
+                                            {/* --- LA BARRE DE PROGRESSION --- */}
+                                            <div className="absolute bottom-0 left-0 w-full h-1 bg-white/50">
+                                                <div
+                                                    className={`h-full bg-${cat.color}-500 transition-all duration-1000 ease-out`}
+                                                    style={{ width: `${progressPct}%` }}
+                                                ></div>
                                             </div>
                                         </div>
-                                        <span className={`text-[10px] font-bold text-${cat.color}-600 bg-white/50 px-2 py-0.5 rounded-full`}>{cat.exos.length}</span>
-                                    </div>
 
-                                    {/* Liste Exercices */}
-                                    <div className="bg-white">
-                                        {cat.exos.map(exo => {
-                                            const statusGlobal = getStatus(exo.id, 1);
-                                            const isLocked = statusGlobal === 'LOCKED' || statusGlobal === 'EMPTY';
-                                            const progress = user.data.training?.[exo.id] || {};
-                                            const hasProgress = progress && Object.keys(progress).length > 0;
+                                        <div className="bg-white">
+                                            {cat.exos.map(exo => {
+                                                const statusGlobal = getStatus(exo.id, 1);
+                                                const isLocked = statusGlobal === 'LOCKED';
+                                                const progress = user.data.training?.[exo.id] || {};
+                                                const hasProgress = progress && Object.keys(progress).length > 0;
+                                                const rowBase = "flex justify-between items-center px-2 py-1.5 md:px-3 md:py-2 border-b border-slate-100 last:border-0 min-h-[40px]";
 
-                                            // Classes communes pour l'alignement
-                                            const rowBase = "flex justify-between items-center px-2 py-1.5 md:px-3 md:py-2 border-b border-slate-100 last:border-0 min-h-[40px]";
+                                                if (isLocked) {
+                                                    return (
+                                                        <div key={exo.id} className={`${rowBase} bg-slate-50/50 opacity-50`}>
+                                                            <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                <div className="w-5 flex justify-center shrink-0 text-slate-400"><Icon name="lock-key" size={12} /></div>
+                                                                <span className="text-xs font-bold text-slate-400 truncate">{exo.title}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
 
-                                            if (isLocked) {
                                                 return (
-                                                    <div key={exo.id} className={`${rowBase} bg-slate-50/50 opacity-50`}>
-                                                        <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                                            {/* Placeholder Icon Slot pour alignement */}
-                                                            <div className="w-5 flex justify-center shrink-0 text-slate-400"><Icon name="lock-key" size={12} /></div>
-                                                            <span className="text-xs font-bold text-slate-400 truncate">{exo.title}</span>
+                                                    <div key={exo.id} className={`${rowBase} hover:bg-slate-50 group transition-colors`}>
+                                                        <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                                                            <div className="w-5 flex justify-center shrink-0">
+                                                                {hasProgress ? (
+                                                                    <button onClick={(e) => { e.stopPropagation(); if (confirm("Remettre à zéro ?")) { onResetTraining(exo.id); onSound('CLICK'); } }} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100" title="Réinitialiser">
+                                                                        <Icon name="arrow-counter-clockwise" size={14} />
+                                                                    </button>
+                                                                ) : <div className="w-1 h-1 rounded-full bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"></div>}
+                                                            </div>
+                                                            <span className="text-xs md:text-sm font-bold text-slate-700 truncate leading-tight cursor-default" title={exo.title}>{exo.title}</span>
+                                                        </div>
+
+                                                        <div className="flex gap-1 shrink-0">
+                                                            {[1, 2, 3].map(lvl => {
+                                                                // --- 1. RÈGLES DE CONTENU (CMS) ---
+                                                                const ruleKey = `${exo.id}_lvl${lvl}`;
+                                                                const defaultRule = lvl === 1 ? 'FREE' : 'PREMIUM';
+                                                                const rule = contentRules[ruleKey] || defaultRule;
+
+                                                                // BLOQUÉ PAR ADMIN
+                                                                if (rule === 'LOCKED') {
+                                                                    return (
+                                                                        <div key={lvl} className="w-6 h-6 md:w-7 md:h-7 rounded border bg-red-50 border-red-200 flex items-center justify-center text-red-400 cursor-not-allowed" title="Ce niveau est temporairement indisponible.">
+                                                                            <Icon name="prohibit" size={12} weight="bold" />
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                // BLOQUÉ PREMIUM
+                                                                if (rule === 'PREMIUM' && !isPremium) {
+                                                                    return (
+                                                                        <div key={lvl}
+                                                                            onClick={(e) => { e.stopPropagation(); setShowPremiumModal(true); }}
+                                                                            className="w-6 h-6 md:w-7 md:h-7 rounded border bg-amber-50 border-amber-300 text-amber-700 font-bold flex items-center justify-center relative cursor-pointer hover:bg-amber-100 transition-colors shadow-sm"
+                                                                            title="💎 Réservé aux membres Premium. Clique pour débloquer !"
+                                                                        >
+                                                                            {lvl}
+                                                                            <div className="absolute -top-1.5 -right-1.5 bg-white text-amber-500 rounded-full p-0.5 border border-amber-200 shadow-sm">
+                                                                                <Icon name="crown" size={8} weight="fill" />
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                // --- 2. PROGRESSION PÉDAGOGIQUE ---
+                                                                const st = getStatus(exo.id, lvl);
+                                                                const isLvlLocked = st === 'LOCKED';
+                                                                const count = progress[lvl] || 0;
+                                                                const btnSize = "w-6 h-6 md:w-7 md:h-7 text-[10px] md:text-xs";
+
+                                                                if (isLvlLocked) {
+                                                                    return (
+                                                                        <div key={lvl}
+                                                                            className={`${btnSize} rounded border bg-slate-100 border-slate-200 flex items-center justify-center text-slate-400 cursor-not-allowed`}
+                                                                            title={`🔒 Termine le niveau ${lvl - 1} pour débloquer`}
+                                                                        >
+                                                                            <Icon name="lock" size={10} weight="bold" />
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                // --- 3. ACCÈS LIBRE ---
+                                                                return (
+                                                                    <button
+                                                                        key={lvl}
+                                                                        onClick={(e) => { e.stopPropagation(); handleClick(exo.id, lvl); }}
+                                                                        className={`${btnSize} rounded border flex items-center justify-center font-bold transition-all active:scale-95 ${getLevelColor(count)}`}
+                                                                        title={count >= 3 ? "Niveau maîtrisé !" : "Jouer ce niveau"}
+                                                                    >
+                                                                        {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
+                                                                    </button>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 );
-                                            }
-
-                                            return (
-                                                <div key={exo.id} className={`${rowBase} hover:bg-slate-50 group transition-colors`}>
-                                                    <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
-                                                        {/* Slot Icône Gauche (Alignement Garanti) */}
-                                                        <div className="w-5 flex justify-center shrink-0">
-                                                            {hasProgress ? (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); if (confirm("Remettre à zéro ?")) { onResetTraining(exo.id); onSound('CLICK'); } }}
-                                                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                                    title="Réinitialiser"
-                                                                >
-                                                                    <Icon name="arrow-counter-clockwise" size={14} />
-                                                                </button>
-                                                            ) : (
-                                                                // Point discret pour marquer la ligne ou vide mais avec width
-                                                                <div className="w-1 h-1 rounded-full bg-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Titre */}
-                                                        <span className="text-xs md:text-sm font-bold text-slate-700 truncate leading-tight cursor-default" title={exo.title}>{exo.title}</span>
-                                                    </div>
-
-                                                    {/* Boutons Niveaux */}
-                                                    <div className="flex gap-1 shrink-0">
-                                                        {[1, 2, 3].map(lvl => {
-                                                            const st = getStatus(exo.id, lvl);
-                                                            const isLvlLocked = st === 'LOCKED';
-                                                            const count = progress[lvl] || 0;
-                                                            const btnSize = "w-6 h-6 md:w-7 md:h-7 text-[10px] md:text-xs"; // Compact
-
-                                                            if (isLvlLocked) {
-                                                                return (
-                                                                    <div key={lvl} className={`${btnSize} rounded border bg-slate-50 border-slate-100 flex items-center justify-center text-slate-200 cursor-not-allowed`}>
-                                                                        <Icon name="lock-key" size={10} weight="fill" />
-                                                                    </div>
-                                                                );
-                                                            }
-
-                                                            return (
-                                                                <button
-                                                                    key={lvl}
-                                                                    onClick={(e) => { e.stopPropagation(); handleClick(exo.id, lvl); }}
-                                                                    className={`${btnSize} rounded border flex items-center justify-center font-bold transition-all active:scale-95 ${getLevelColor(count)}`}
-                                                                >
-                                                                    {count >= 3 ? <Icon name="check" size={12} weight="bold" /> : lvl}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'BREVET' && (
                     <BrevetList
-                        user={user} // <--- AJOUTER CETTE PROP
+                        user={user}
                         onPlay={onPlay}
                         onBack={() => setActiveTab('HOME')}
+                        setShowPremiumModal={setShowPremiumModal}
                     />
                 )}
 
-                {activeTab === 'SURVIVAL' && <SurvivalView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} />}
+                {activeTab === 'SURVIVAL' && <SurvivalView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} setShowPremiumModal={setShowPremiumModal} />}
             </main>
+            {showPremiumModal && (
+                <PremiumModal
+                    onClose={() => setShowPremiumModal(false)}
+                    onSubscribe={() => {
+                        // 1. Récupération de l'ID Élève
+                        const userId = user.data?.id || user.id;
+
+                        if (!userId) {
+                            toast.error("Erreur d'identifiant. Déconnecte-toi et réessaie.");
+                            return;
+                        }
+
+                        // 2. Lien Stripe (Remplacez par votre VRAI lien "Buy Button" Stripe)
+                        // ex: https://buy.stripe.com/test_...
+                        const stripeUrl = "https://buy.stripe.com/test_3cIfZa04G4u538Ccy657W00";
+
+                        // 3. Construction de l'URL avec le paramètre magique
+                        // 'client_reference_id' est le champ officiel de Stripe pour stocker un ID externe
+                        const separator = stripeUrl.includes('?') ? '&' : '?';
+                        const finalUrl = `${stripeUrl}${separator}client_reference_id=${userId}`;
+
+                        // 4. Ouverture
+                        window.open(finalUrl, "_blank");
+                    }}
+                />
+            )}
+
         </div>
     );
 };
