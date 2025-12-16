@@ -18,13 +18,13 @@ import {
     generateFactoriseQuestion,
     generateMeanQuestion,
     generateAlgoQuestion,
-    generateTestQuestion // Votre nouveau test
+    generateGraphQuestion, // Assurez-vous d'importer celui-ci si vous l'avez
+    generateTestQuestion
 } from './mathGenerators';
 
-// 2. On crée un Dictionnaire (ID -> Fonction)
-// C'est ici que vous ajouterez vos futurs exercices !
+// 2. On crée un Dictionnaire
 export const EXERCISE_MAPPING = {
-    // Nombres et Calculs
+    // --- Nombres et Calculs ---
     'auto_1_ecriture_decimale_fractions': generateFractionQuestion,
     'auto_2_comparaison_calcul_decimaux': generateDecimalQuestion,
     'auto_3_fractions_calc': generateFractionOpsQuestion,
@@ -36,23 +36,31 @@ export const EXERCISE_MAPPING = {
     'auto_9_divisibilite': generateDivisibilityQuestion,
     'auto_10_vocabulaire_ops': generateVocabularyQuestion,
 
-    // Calcul Littéral
+    // --- Calcul Littéral ---
     'auto_11_simplifier_litteral': generateSimplifyExpressionQuestion,
     'auto_12_valeur_expression': generateSubstitutionQuestion,
     'auto_13_dev_fact': generateDevelopFactorizeQuestion,
     'auto_facto_simple': generateFactoriseQuestion,
 
-    // Organisation données
+    // --- Organisation données ---
     'auto_31_moyenne': generateMeanQuestion,
 
-    // Algo
+    // --- Algorithmique (Scratch) ---
+    // Scratch fonctionne comme un générateur standard (il renvoie du JSON), donc on le mappe directement
     'auto_39_algo': generateAlgoQuestion,
 
-    // VOS NOUVEAUX TESTS
+    // --- EXERCICES VISUELS (Moteurs Spéciaux) ---
+    // Au lieu d'une fonction, on met une "Clé" (String) que StandardGame va reconnaître
+    'auto_25_pythagore': 'ENGINE_PYTHAGORE',
+    'auto_26_thales': 'ENGINE_THALES',
+    'auto_37_graph': 'ENGINE_GRAPH_READING',
+    'auto_38_graph2': 'ENGINE_TABLE_CURVE',
+
+    // --- TESTS ---
     'auto_test_calcul': generateTestQuestion,
 };
 
-// Fonction utilitaire pour récupérer le générateur en sécurité
+// Fonction utilitaire
 export const getGenerator = (id) => {
     return EXERCISE_MAPPING[id] || null;
 };

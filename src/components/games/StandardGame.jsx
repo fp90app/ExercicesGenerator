@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc } from "firebase/firestore"; // J'ai retiré les imports inutiles
 import { db } from "../../firebase";
 
+
+
+
+
 import { Icon } from '../UI';
 import { QUESTIONS_DB } from '../../utils/data'; // Fallback statique
 import { QUESTIONS_TABLES, QUESTIONS_DIVISIONS } from '../../utils/data';
 
 // --- NOUVEL IMPORT ---
 import { getGenerator } from '../../utils/exerciseMapping';
+import { useMathGenerator } from '../../hooks/useMathGenerator';
+import MathText from '../MathText';
 
 // --- IMPORTS COMPOSANTS SPÉCIAUX ---
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
@@ -16,7 +22,331 @@ import ExerciceTableauValeursCourbe from './ExerciceTableauValeursCourbe';
 import ExercicePythagore from './ExercicePythagore';
 import ScratchScript from './ScratchBlock';
 
-const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
+// =========================================================
+// 1. NOUVEAU SYSTÈME (Wrapper)
+// =========================================================
+import PythagoreSystem from '../PythagoreSystem';
+
+// =========================================================
+// 1. COMPOSANT PRINCIPAL (Le "Routeur" Intelligent)
+// =========================================================
+const StandardGame = (props) => {
+    const { user, config, onFinish, onBack, onSound } = props;
+
+    // --- A. HOOK DYNAMIQUE ---
+    const { questionData, regenerate } = useMathGenerator(config.id, config.level);
+
+    // --- B. ÉTATS DU JEU (Cycle de 10 questions) ---
+    const [step, setStep] = useState(0);
+    const [score, setScore] = useState(0);
+    const [gameState, setGameState] = useState('playing'); // 'playing' | 'finished'
+    const [userAnswer, setUserAnswer] = useState("");
+    const [feedback, setFeedback] = useState(null);
+    const [showCalc, setShowCalc] = useState(false);
+
+    useEffect(() => {
+        let timer;
+        if (feedback === 'CORRECT' && step < 9) { // On ne le fait pas à la dernière question (pour voir le score)
+            timer = setTimeout(() => {
+                handleNext();
+            }, 1500); // 1500ms = 1.5 secondes d'attente
+        }
+        return () => clearTimeout(timer); // Nettoyage si on quitte vite
+    }, [feedback, step]);
+
+    // Réinitialiser le jeu si on change d'exercice
+    useEffect(() => {
+        setStep(0);
+        setScore(0);
+        setGameState('playing');
+        setFeedback(null);
+        setUserAnswer("");
+    }, [config.id]);
+
+    // --- ACTIONS ---
+    const handleValidate = () => {
+        if (!questionData) return;
+
+        // Normalisation de la réponse (points/virgules)
+        const cleanUser = userAnswer.replace(',', '.').trim();
+        const cleanCorrect = String(questionData.correct).replace(',', '.').trim();
+
+        // Tolérance pour les décimales (0.1 près)
+        const isCorrect = Math.abs(parseFloat(cleanUser) - parseFloat(cleanCorrect)) < 0.1;
+
+        if (isCorrect) {
+            if (onSound) onSound('CORRECT');
+            setFeedback('CORRECT');
+            setScore(s => s + 1);
+        } else {
+            if (onSound) onSound('WRONG');
+            setFeedback('WRONG');
+        }
+    };
+
+    const handleNext = () => {
+        setFeedback(null);
+        setUserAnswer("");
+
+        if (step < 9) { // 0 à 9 = 10 questions
+            setStep(s => s + 1);
+            regenerate(); // Nouvelle question
+        } else {
+            setGameState('finished');
+            if (score >= 8 && onSound) onSound('WIN');
+            // On envoie aussi la récompense définie dans le JSON
+            if (onFinish) onFinish(score, { xp_reward: questionData.xp_reward }); // Sauvegarde
+        }
+    };
+
+    // --- C. AFFICHAGE DYNAMIQUE ---
+    // --- C. AFFICHAGE DYNAMIQUE ---
+    if (questionData) {
+
+        // 1. ÉCRAN DE FIN
+        if (gameState === 'finished') {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 animate-in fade-in">
+                    <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md w-full border border-slate-200">
+                        <div className="text-6xl mb-4">{score >= 8 ? '🏆' : '🎓'}</div>
+                        <h2 className="text-3xl font-black text-slate-800 mb-2">Terminé !</h2>
+                        <div className={`text-5xl font-black mb-8 ${score >= 8 ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            {score}<span className="text-xl text-slate-300">/10</span>
+                        </div>
+                        <button onClick={onBack} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                            <Icon name="arrow-left" /> Retour
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // 2. MOTEUR VISUEL : PYTHAGORE
+        if (questionData.visualEngine === 'ENGINE_PYTHAGORE') {
+            // ... (Ton code Pythagore existant, ne change rien ici) ...
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row gap-6 items-center justify-center p-4">
+                    {/* ... tout le contenu de Pythagore ... */}
+                    {/* Je ne le remets pas pour raccourcir, mais GARDE-LE ! */}
+                    <div className="w-full md:w-1/2 max-w-md bg-white p-4 rounded-3xl shadow-lg border border-slate-100 flex flex-col min-h-[350px] relative">
+                        <div className="flex justify-between items-center px-2 mb-2">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Question {step + 1} / 10</span>
+                            <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-xs font-bold">Niveau {config.level}</div>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center">
+                            <PythagoreSystem config={questionData.visualConfig} highlight={feedback !== null} />
+                        </div>
+                    </div>
+
+                    {/* COLONNE DROITE (Copie de ton code actuel) */}
+                    <div className="w-full md:w-1/2 max-w-md bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative">
+                        {/* ... Le reste de ton interface Pythagore ... */}
+                        {/* Header Question */}
+                        <div className="flex justify-between items-start mb-6">
+                            <h2 className="text-xl font-black text-slate-800 leading-tight flex-1">
+                                <MathText text={questionData.question} />
+                            </h2>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowCalc(!showCalc)} className={`p-2 rounded-lg transition-colors ${showCalc ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-indigo-50 hover:text-indigo-500'}`}><Icon name="calculator" weight="fill" /></button>
+                                <button onClick={onBack} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Icon name="x" size={24} /></button>
+                            </div>
+                        </div>
+                        {showCalc && <div className="absolute top-20 right-4 z-50 shadow-2xl"><Calculator onClose={() => setShowCalc(false)} /></div>}
+
+                        <div className="mb-6">
+                            <input type="number" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} disabled={feedback !== null} placeholder="Ta réponse..." className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'}`} onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()} />
+                        </div>
+
+                        {feedback && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2">
+                                <div className={`mb-4 p-4 rounded-xl text-center font-bold flex items-center justify-center gap-2 ${feedback === 'CORRECT' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                    <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning-circle'} weight="fill" />
+                                    {feedback === 'CORRECT' ? 'Excellent !' : 'Aïe...'}
+                                </div>
+                                {questionData.explanation && (
+                                    <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 text-sm leading-relaxed">
+                                        <div className="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2 flex items-center gap-1"><Icon name="info" weight="fill" /> Correction</div>
+                                        <MathText text={questionData.explanation} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!feedback ? (
+                            <button onClick={handleValidate} disabled={!userAnswer} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"><Icon name="check" weight="bold" /> Valider</button>
+                        ) : (
+                            <button onClick={handleNext} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">{step < 9 ? "Question Suivante" : "Voir mon score"} <Icon name="arrow-right" weight="bold" /></button>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // 3. [NOUVEAU] MOTEUR GÉNÉRIQUE (Pour Carrés Parfaits et les autres)
+        // C'est ce bloc qui va empêcher le crash !
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+
+                {/* BARRE DE PROGRESSION */}
+                <div className="fixed top-0 left-0 w-full h-2 bg-slate-200">
+                    <div className="h-full bg-indigo-600 transition-all" style={{ width: `${(step / 10) * 100}%` }}></div>
+                </div>
+
+                <div className="w-full max-w-lg bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative">
+
+                    {/* EN-TÊTE */}
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Question {step + 1} / 10</div>
+                            <h2 className="text-2xl font-black text-slate-800 leading-tight">
+                                <MathText text={questionData.question} />
+                            </h2>
+                        </div>
+                        <button onClick={onBack} className="w-10 h-10 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full flex items-center justify-center transition-colors">
+                            <Icon name="x" weight="bold" />
+                        </button>
+                    </div>
+
+                    {/* ZONE DE RÉPONSE */}
+                    <div className="mb-8">
+                        <input
+                            type="text" // 'text' permet de gérer les virgules plus facilement si besoin
+                            inputMode="decimal"
+                            value={userAnswer}
+                            onChange={(e) => setUserAnswer(e.target.value)}
+                            disabled={feedback !== null}
+                            autoFocus
+                            placeholder="Votre réponse..."
+                            className={`w-full p-5 text-3xl font-bold text-center rounded-2xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
+                                feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
+                                    'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 text-slate-700'
+                                }`}
+                            onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                        />
+                    </div>
+
+                    {/* FEEDBACK & CORRECTION */}
+                    {feedback && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 mb-6">
+                            <div className={`p-4 rounded-xl text-center font-bold flex items-center justify-center gap-2 mb-4 ${feedback === 'CORRECT' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning-circle'} weight="fill" size={24} />
+                                <span className="text-lg">{feedback === 'CORRECT' ? 'Excellent !' : 'Aïe...'}</span>
+                            </div>
+
+                            {questionData.explanation && (
+                                <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 leading-relaxed text-left">
+                                    <div className="font-bold text-slate-400 text-xs uppercase tracking-wider mb-2 flex items-center gap-1">
+                                        <Icon name="info" weight="fill" /> Correction
+                                    </div>
+                                    <div className="text-sm md:text-base">
+                                        <MathText text={questionData.explanation} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* BOUTON D'ACTION */}
+                    {!feedback ? (
+                        <button
+                            onClick={handleValidate}
+                            disabled={!userAnswer}
+                            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-black transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                        >
+                            <Icon name="check" weight="bold" /> Valider
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleNext}
+                            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1 flex items-center justify-center gap-2"
+                        >
+                            {step < 9 ? "Question Suivante" : "Voir mon score"} <Icon name="arrow-right" weight="bold" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // D. SINON, ON LANCE L'ANCIEN SYSTÈME (Legacy)
+    return <LegacyStandardGame {...props} />;
+};
+
+// =========================================================
+// 2. VOTRE ANCIEN CODE (Juste renommé)
+// =========================================================
+
+const LegacyStandardGame = ({ user, config, onFinish, onBack, onSound }) => {
+
+    const { questionData, regenerate } = useMathGenerator(config.id, config.level);
+
+    // Si le hook a réussi à générer une question, on affiche l'interface DYNAMIQUE
+    if (questionData) {
+
+        // C'est ici qu'on redirigera plus tard vers vos vrais composants visuels (PythagoreSystem)
+        // Pour l'instant, on affiche un écran de DEBUG pour vérifier que les calculs sont bons.
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border-2 border-indigo-100">
+                    <h1 className="text-2xl font-black text-indigo-600 mb-6 flex items-center gap-2">
+                        <Icon name="lightning" weight="fill" /> Moteur Dynamique
+                    </h1>
+
+                    <div className="space-y-4 mb-6">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Question générée</div>
+                            <div className="text-lg font-bold text-slate-800">{questionData.question}</div>
+                        </div>
+
+                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                            <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">Réponse attendue</div>
+                            <div className="text-xl font-black text-emerald-800">{questionData.correct}</div>
+                        </div>
+
+                        {/* Ce bloc montre les données qui seront envoyées à votre composant PythagoreSystem */}
+                        <div className="bg-slate-900 p-4 rounded-xl text-xs font-mono text-green-400 overflow-auto">
+                            <div>// Config Visuelle calculée :</div>
+                            {JSON.stringify(questionData.visualConfig, null, 2)}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={regenerate}
+                        className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1 mb-3"
+                    >
+                        Générer une variante
+                    </button>
+
+                    <button onClick={onBack} className="w-full text-slate-400 font-bold hover:text-slate-600 py-2">
+                        Retour au menu
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    // 1. On récupère la configuration depuis le mapping
+    const mappedConfig = getGenerator(config.id);
+
+    // =========================================================
+    // A. ROUTAGE VERS MOTEURS SPÉCIAUX (VISUELS)
+    // =========================================================
+    // Si le mapping renvoie une "String", c'est un moteur spécial
+    if (mappedConfig === 'ENGINE_PYTHAGORE') {
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExercicePythagore user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
+    }
+    if (mappedConfig === 'ENGINE_THALES') {
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceThales user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
+    }
+    if (mappedConfig === 'ENGINE_GRAPH_READING') {
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceLectureGraphique user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
+    }
+    if (mappedConfig === 'ENGINE_TABLE_CURVE') {
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceTableauValeursCourbe user={user} level={config.level} onFinish={(s) => onFinish(s)} onQuit={onBack} onSound={onSound} /></div>;
+    }
+
+    // =========================================================
+    // B. JEU STANDARD (GÉNÉRATEURS & SCRATCH)
+    // =========================================================
     const [questions, setQuestions] = useState([]);
     const [current, setCurrent] = useState(0);
     const [score, setScore] = useState(0);
@@ -25,54 +355,29 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
     const [feedback, setFeedback] = useState(null);
     const [showConfetti, setShowConfetti] = useState(false);
 
-    // =========================================================
-    // 0. ROUTAGE VERS COMPOSANTS SPÉCIAUX (VISUELS)
-    // =========================================================
-    if (config.id === 'auto_25_pythagore') {
-        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExercicePythagore user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
-    }
-    if (config.id === 'auto_26_thales') {
-        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceThales user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
-    }
-    if (config.id === 'auto_37_graph') {
-        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceLectureGraphique user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
-    }
-    if (config.id === 'auto_38_graph2') {
-        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceTableauValeursCourbe user={user} level={config.level} onFinish={(s) => onFinish(s)} onQuit={onBack} onSound={onSound} /></div>;
-    }
-
-    // =========================================================
-    // INITIALISATION DU JEU STANDARD
-    // =========================================================
     useEffect(() => {
         const initGame = async () => {
             let pool = [];
-            const generatorFunc = getGenerator(config.id); // On cherche dans le mapping
 
-            // --- CAS 1 : C'est un exercice mappé (Standard) ---
-            if (generatorFunc) {
-                // On essaie de récupérer des paramètres spécifiques depuis Firebase si nécessaire
-                // (Optionnel, pour l'instant on passe juste le niveau)
-                const params = { level: config.level };
-
+            // CAS 1 : C'est un générateur (Fonction)
+            if (typeof mappedConfig === 'function') {
                 try {
-                    // Petite astuce : Si on veut surcharger les paramètres depuis Firebase pour un ID précis
-                    // On peut le faire ici, mais pour l'instant on reste simple.
+                    const params = { level: config.level };
                     for (let i = 0; i < 10; i++) {
-                        pool.push(generatorFunc(params));
+                        pool.push(mappedConfig(params));
                     }
                 } catch (e) {
                     console.error("Erreur générateur pour " + config.id, e);
                 }
             }
 
-            // --- CAS 2 : Mode Tables / Divisions ---
+            // CAS 2 : Mode Tables / Divisions (Legacy)
             else if (config.mode === 'FREE_MIX') {
                 const { tables, modes } = config.id;
                 if (modes.mul) tables.forEach(t => { if (QUESTIONS_TABLES[t]) pool = [...pool, ...QUESTIONS_TABLES[t]]; });
                 if (modes.div) tables.forEach(t => { if (QUESTIONS_DIVISIONS[t]) pool = [...pool, ...QUESTIONS_DIVISIONS[t]]; });
             }
-            else if (config.mode.includes('TABLES') || config.mode.includes('DIVISIONS')) {
+            else if (config.mode && (config.mode.includes('TABLES') || config.mode.includes('DIVISIONS'))) {
                 const SOURCE = config.mode.includes('DIVISIONS') ? QUESTIONS_DIVISIONS : QUESTIONS_TABLES;
                 if (Array.isArray(config.id)) {
                     config.id.forEach(tId => { if (SOURCE[tId]) pool = [...pool, ...SOURCE[tId]]; });
@@ -81,29 +386,27 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                 }
             }
 
-            // --- CAS 3 : Fallback (Ancien système procédural ou statique) ---
+            // CAS 3 : Fallback (Base de données statique)
             else if (pool.length === 0) {
-                // On regarde si c'est dans la DB statique
                 pool = QUESTIONS_DB[config.id]?.[config.level] || [];
             }
 
-            // --- PRÉPARATION DES QUESTIONS ---
+            // PRÉPARATION DES QUESTIONS
             if (pool && pool.length > 0) {
                 const qList = [...pool]
-                    .sort(() => 0.5 - Math.random()) // Mélange des questions
-                    .slice(0, 10) // On en prend 10
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, 10)
                     .map(q => {
                         const answers = [...q.o];
-                        const correct = answers[0]; // La convention est : la 1ère option est la bonne
+                        const correct = answers[0];
                         return {
                             ...q,
-                            mixedAnswers: answers.sort(() => 0.5 - Math.random()), // Mélange des réponses
+                            mixedAnswers: answers.sort(() => 0.5 - Math.random()),
                             correctIndex: -1,
                             correctTxt: correct
                         };
                     });
 
-                // On retrouve l'index de la bonne réponse après mélange
                 qList.forEach(q => q.correctIndex = q.mixedAnswers.indexOf(q.correctTxt));
                 setQuestions(qList);
             } else {
@@ -111,7 +414,7 @@ const StandardGame = ({ user, config, onFinish, onBack, onSound }) => {
             }
         };
         initGame();
-    }, [config]);
+    }, [config, mappedConfig]);
 
     const handleAnswer = (idx) => {
         if (feedback) return;

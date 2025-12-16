@@ -9,6 +9,8 @@ import Landing from './components/Landing';
 import { Toaster, toast } from 'react-hot-toast';
 
 
+
+
 // --- IMPORTS FIREBASE ---
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "./firebase";
@@ -383,6 +385,7 @@ export default function App() {
             />
           )}
         </Suspense>
+
       </>
     );
   }

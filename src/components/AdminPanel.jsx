@@ -10,9 +10,83 @@ import {
 import { ref, uploadBytes, getDownloadURL, listAll } from "firebase/storage";
 import { Icon } from './UI';
 import { toast } from 'react-hot-toast';
+import MathText from './MathText';
 
 // NOTE : On retire l'import de AUTOMATISMES_DATA car on passe en mode Dynamique !
 import { AUTOMATISMES_DATA } from '../utils/data'; // Gardé uniquement pour la migration de secours
+
+// Ajoutez mathjs pour calculer l'aperçu en direct
+import * as math from 'mathjs';
+
+// Importez vos moteurs visuels pour l'aperçu
+import PythagoreSystem from './PythagoreSystem';
+// (Vous pourrez ajouter ThalesSystem ici plus tard)
+
+const ENGINE_REGISTRY = {
+    'ENGINE_PYTHAGORE': PythagoreSystem,
+    // Quand tu auras Thalès, décommente juste la ligne dessous :
+    // 'ENGINE_THALES': ThalesSystem,
+};
+
+// --- UTILITAIRE : GÉNÉRATEUR D'APERÇU (Simule useMathGenerator) ---
+const generatePreviewData = (jsonConfig, level = 1) => {
+    try {
+        const config = JSON.parse(jsonConfig);
+        const lvlKey = String(level);
+        const levelData = config.levels ? (config.levels[lvlKey] || config.levels["1"]) : config;
+
+        if (!levelData) throw new Error(`Niveau ${level} non trouvé.`);
+
+        let scope = {};
+        // 1. Variables
+        if (levelData.variables) {
+            Object.keys(levelData.variables).forEach(key => {
+                try { scope[key] = math.evaluate(String(levelData.variables[key]), scope); }
+                catch (e) { scope[key] = "ERR"; }
+            });
+        }
+        // 2. Calculs (Multi-passes pour gérer les dépendances)
+        if (levelData.calculations) {
+            let toCalculate = Object.keys(levelData.calculations);
+            let pass = 0;
+            while (toCalculate.length > 0 && pass < 5) {
+                const nextBatch = [];
+                toCalculate.forEach(key => {
+                    try { scope[key] = math.evaluate(String(levelData.calculations[key]), scope); }
+                    catch (e) { nextBatch.push(key); }
+                });
+                if (nextBatch.length === toCalculate.length) { nextBatch.forEach(k => scope[k] = "ERR"); break; }
+                toCalculate = nextBatch; pass++;
+            }
+        }
+        // 3. Textes
+        let qText = levelData.question_template || "Question ?";
+        let expText = levelData.explanation_template || "";
+        const keys = Object.keys(scope).sort((a, b) => b.length - a.length); // Tri important !
+
+        keys.forEach(key => {
+            const regex = new RegExp(`{${key}}`, 'g');
+            let val = scope[key];
+            if (typeof val === 'number' && !Number.isInteger(val)) val = Math.round(val * 100) / 100;
+            qText = qText.replace(regex, val);
+            if (expText) expText = expText.replace(regex, val);
+        });
+        // 4. Visuel
+        let visualData = null;
+        const rawVisual = { ...(config.common_config?.visual_config_template || {}), ...(levelData.visual_config_override || {}) };
+        if (Object.keys(rawVisual).length > 0) {
+            const strConfig = JSON.stringify(rawVisual);
+            let injectedStr = strConfig;
+            keys.forEach(key => { injectedStr = injectedStr.replace(new RegExp(`{${key}}`, 'g'), scope[key]); });
+            visualData = JSON.parse(injectedStr);
+        }
+        // Réponse corrigée
+        let correct = levelData.correct_answer;
+        if (typeof correct === 'string' && correct.startsWith('{')) correct = scope[correct.replace(/[{}]/g, '')];
+
+        return { question: qText, explanation: expText, correct, visualConfig: visualData, visualEngine: config.visual_engine, scope };
+    } catch (e) { return { error: e.message }; }
+};
 
 const AdminPanel = ({ user, onBack }) => {
 
@@ -21,6 +95,7 @@ const AdminPanel = ({ user, onBack }) => {
     // ========================================================================
     const userRole = user?.role || user?.data?.role;
     const isAdmin = user?.data?.isAdmin === true;
+
 
     if (userRole !== 'teacher' || !isAdmin) {
         return (
@@ -59,23 +134,73 @@ const AdminPanel = ({ user, onBack }) => {
 
     // Inputs Éditeur
     const [jsonInput, setJsonInput] = useState("");
+    const [isValidJson, setIsValidJson] = useState(true);
     const [imageFile, setImageFile] = useState(null);
     const [uploadedUrl, setUploadedUrl] = useState("");
     const [galleryImages, setGalleryImages] = useState([]);
+
+
+    const [previewData, setPreviewData] = useState(null);
+    const [previewLevel, setPreviewLevel] = useState(1);
+    const [currentDocId, setCurrentDocId] = useState("");
+
+    const PreviewEngine = uploadedUrl && uploadedUrl.visualEngine
+        ? ENGINE_REGISTRY[uploadedUrl.visualEngine]
+        : null;
 
     // --- CHARGEMENT INITIAL ---
     useEffect(() => {
         fetchConfig();
         if (activeTab === 'LIST') fetchSubjects();
-        if (activeTab === 'EDITOR') fetchGallery();
 
-        // MODIFICATION : On charge le programme dynamique pour l'onglet CONTENT
+        // CORRECTION : On charge aussi le programme quand on va dans l'éditeur
+        if (activeTab === 'EDITOR') {
+            fetchGallery();
+            fetchProgram();
+        }
+
         if (activeTab === 'CONTENT') {
             fetchContentRules();
             fetchSubjects();
-            fetchProgram(); // <--- NOUVEAU
+            fetchProgram();
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (jsonInput.trim()) setPreviewData(generatePreviewData(jsonInput, previewLevel));
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [jsonInput, previewLevel]);
+
+    const loadExerciseIntoEditor = async (id) => {
+        try {
+            const docRef = doc(db, "structure_automatismes", id);
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                setJsonInput(JSON.stringify(snap.data(), null, 2));
+                setCurrentDocId(id);
+                toast.success("Exercice chargé !");
+            } else { toast.error("Introuvable"); }
+        } catch (e) { toast.error(e.message); }
+    };
+
+    const saveJsonExercise = async () => {
+        try {
+            const data = JSON.parse(jsonInput);
+            if (!data.id) return toast.error("ID manquant !");
+            await setDoc(doc(db, "structure_automatismes", data.id), data);
+            toast.success("Sauvegardé !");
+            // Appelez ici votre fonction de rafraichissement si elle existe, ex: fetchProgram();
+        } catch (e) { toast.error("Erreur JSON : " + e.message); }
+    };
+
+    const forcePreview = () => {
+        if (jsonInput.trim()) {
+            setPreviewData(generatePreviewData(jsonInput, previewLevel));
+            toast.success("Données régénérées");
+        }
+    };
 
     // ========================================================================
     // 1. GESTION DU PROGRAMME DYNAMIQUE (CMS) - NOUVELLES FONCTIONS
@@ -110,21 +235,53 @@ const AdminPanel = ({ user, onBack }) => {
         // Vérification doublon ID localement
         if (currentExos.some(e => e.id === id)) return alert("Cet ID existe déjà dans cette catégorie !");
 
-        // Nouvel objet exercice
+        // Nouvel objet pour le MENU (liste de gauche)
         const newExo = {
             id,
             title,
-            type: 'GENERATOR', // Par défaut
+            type: 'GENERATOR',
             isPremium: false
         };
 
         const updatedExos = [...currentExos, newExo];
 
+        // --- NOUVEAU : Structure par défaut du document (pour l'éditeur) ---
+        const defaultStructure = {
+            id: id,
+            visual_engine: "NONE", // Pas de moteur visuel par défaut
+            levels: {
+                "1": {
+                    "variables": { "x": "randomInt(1, 10)", "y": "randomInt(1, 10)" },
+                    "question_template": "Calculer $ {x} + {y} $.",
+                    "correct_answer": "x + y",
+                    "calculations": {}, // Pas de calculs complexes pour l'exemple
+                    "explanation_template": "C'est une simple addition : $ {x} + {y} = ... $",
+                    "xp_reward": 5
+                }
+            }
+        };
+
         try {
-            await updateDoc(doc(db, "structure_automatismes", catId), { exos: updatedExos });
-            toast.success("Exercice ajouté !");
-            fetchProgram(); // On rafraîchit la liste
-        } catch (e) { toast.error(e.message); }
+            // On utilise un BATCH pour faire les 2 opérations en même temps
+            // (Mise à jour du menu + Création du fichier)
+            const batch = writeBatch(db);
+
+            // 1. Mise à jour du Menu (Catégorie)
+            const catRef = doc(db, "structure_automatismes", catId);
+            batch.update(catRef, { exos: updatedExos });
+
+            // 2. Création du Document de l'exercice
+            const exoRef = doc(db, "structure_automatismes", id);
+            batch.set(exoRef, defaultStructure);
+
+            await batch.commit();
+
+            toast.success("Exercice créé et initialisé !");
+            fetchProgram(); // On rafraîchit la liste pour voir le changement
+        } catch (e) {
+            console.error(e);
+            toast.error(e.message);
+        }
     };
 
     const handleDeleteExo = async (catId, currentExos, exoId) => {
@@ -430,7 +587,7 @@ const AdminPanel = ({ user, onBack }) => {
                     <TabButton id="CONTENT" label="Contenu & Accès" icon="lock-key-open" />
                     <TabButton id="CONFIG" label="Config" icon="gear" />
                     <TabButton id="LIST" label="Brevets" icon="list-dashes" />
-                    <TabButton id="EDITOR" label="Éditeur" icon="code" />
+                    <button onClick={() => setActiveTab('EDITOR')} className={`px-4 py-2 font-bold rounded-t-xl transition-colors ${activeTab === 'EDITOR' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}>Éditeur JSON</button>
                 </div>
 
                 <div className="bg-white p-6 rounded-b-3xl rounded-tr-3xl shadow-sm min-h-[500px]">
@@ -464,10 +621,32 @@ const AdminPanel = ({ user, onBack }) => {
                                             <input type="text" className="flex-1 p-3 border-2 border-slate-200 rounded-xl font-bold uppercase outline-none focus:border-indigo-500" placeholder="Identifiant exact (ex: TOMA90)..." value={userSearch} onChange={e => setUserSearch(e.target.value)} />
                                         )}
                                         {filterMode === 'TEACHER' && (
-                                            <select className="flex-1 p-3 border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-indigo-500" value={targetTeacher} onChange={e => setTargetTeacher(e.target.value)}>
-                                                <option value="">-- Choisir un Prof VIP --</option>
-                                                <option value="autonome">Autonome (Inscrits seuls)</option>
-                                                {config.vipTeacherIds?.map(id => (<option key={id} value={id}>{vipDetails[id] || id}</option>))}
+                                            <select
+                                                className="ml-4 p-2 rounded border border-slate-300 text-sm font-bold text-slate-700 max-w-[250px]"
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        loadExerciseIntoEditor(e.target.value);
+                                                    }
+                                                }}
+                                                defaultValue=""
+                                            >
+                                                <option value="">-- Charger un exercice --</option>
+
+                                                {/* OPTION DE SECOURS (Test) */}
+                                                <option value="auto_pythagore_demo" className="font-bold text-indigo-600">
+                                                    ✨ Pythagore Demo (Test)
+                                                </option>
+
+                                                {/* LISTE DYNAMIQUE (Base de données) */}
+                                                {program.map(cat => (
+                                                    <optgroup key={cat.id} label={cat.title}>
+                                                        {cat.exos.map(e => (
+                                                            <option key={e.id} value={e.id}>
+                                                                {e.title}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                ))}
                                             </select>
                                         )}
                                         <button onClick={handleFilter} className="bg-slate-800 text-white px-6 rounded-xl font-bold hover:bg-black shadow-lg flex items-center gap-2">
@@ -710,40 +889,201 @@ const AdminPanel = ({ user, onBack }) => {
                     )}
 
                     {activeTab === 'EDITOR' && (
-                        <div className="grid lg:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                                    <h3 className="font-bold text-indigo-900 mb-4 flex items-center gap-2"><Icon name="upload-simple" /> Upload Rapide</h3>
-                                    <div className="flex gap-2">
-                                        <input type="file" onChange={e => setImageFile(e.target.files[0])} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
-                                        <button onClick={handleUpload} disabled={loading} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold disabled:opacity-50">{loading ? "..." : "Envoyer"}</button>
+                        <div className="h-full flex flex-col">
+                            {/* BARRE D'OUTILS */}
+                            <div className="mb-4 flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <div className="flex gap-2 items-center">
+                                    <Icon name="code" className="text-indigo-600" />
+                                    <span className="font-bold text-slate-700">Éditeur JSON</span>
+
+                                    {/* Sélecteur d'exercice existant */}
+                                    <select
+                                        className="ml-4 p-2 rounded border border-slate-300 text-sm font-bold max-w-[300px]"
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (!val) return;
+
+                                            // 1. CAS SPÉCIAL : DÉMO (Injection directe du JSON)
+                                            if (val === "auto_pythagore_demo") {
+                                                const demoJson = {
+                                                    "id": "auto_pythagore_demo",
+                                                    "visual_engine": "ENGINE_PYTHAGORE",
+                                                    "common_config": {
+                                                        "visual_config_template": {
+                                                            "points": { "Right": "A", "Top": "B", "Bottom": "C" },
+                                                            "showSquare": { "size": 20 }
+                                                        }
+                                                    },
+                                                    "levels": {
+                                                        "1": {
+                                                            "variables": { "k": "randomInt(1, 5)", "base_a": 3, "base_b": 4 },
+                                                            "question_template": "Le triangle est rectangle en A. $AB={c1}$, $AC={c2}$. Calculer $BC$.",
+                                                            "calculations": {
+                                                                "c1": "base_a * k",
+                                                                "c2": "base_b * k",
+                                                                "hyp_carre": "c1^2 + c2^2",
+                                                                "hyp": "sqrt(hyp_carre)"
+                                                            },
+                                                            "correct_answer": "{hyp}",
+                                                            "explanation_template": "On utilise Pythagore : $$BC^2 = AB^2 + AC^2$$ $$BC^2 = {c1}^2 + {c2}^2 = {hyp_carre}$$ Donc $BC = \\sqrt{{hyp_carre}} = {hyp}$",
+                                                            "visual_config_override": {
+                                                                "vals": { "AB": "{c1}", "AC": "{c2}" },
+                                                                // AJOUT DES UNITÉS ICI POUR ÉVITER 'UNDEFINED'
+                                                                "given": {
+                                                                    "AB": { "val": "{c1}", "unit": "" },
+                                                                    "AC": { "val": "{c2}", "unit": "" }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                };
+                                                setJsonInput(JSON.stringify(demoJson, null, 2));
+                                                toast.success("Démo chargée !");
+                                                setTimeout(() => setPreviewData(generatePreviewData(JSON.stringify(demoJson), 1)), 100);
+                                            }
+                                        }}
+                                    >
+                                        <option value="">-- Charger un exercice --</option>
+
+                                        {/* --- L'OPTION QUI TE MANQUAIT --- */}
+                                        <option value="auto_pythagore_demo" className="font-bold text-indigo-600 bg-indigo-50">
+                                            ✨ Pythagore Demo (Test)
+                                        </option>
+
+                                        {/* LISTE DYNAMIQUE */}
+                                        {program.map(cat => (
+                                            <optgroup key={cat.id} label={cat.title}>
+                                                {cat.exos.map(e => (
+                                                    <option key={e.id} value={e.id}>
+                                                        {e.title}
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            // Fonction de Prévisualisation (Rafraîchir les nombres)
+                                            const preview = generatePreviewData(jsonInput, 1); // Test niveau 1 par défaut
+                                            if (preview) {
+                                                setUploadedUrl(preview); // On utilise cet état temporairement pour stocker la preview
+                                                toast.success("Aperçu généré !");
+                                            } else {
+                                                toast.error("Erreur JSON. Vérifiez la syntaxe.");
+                                            }
+                                        }}
+                                        className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-bold hover:bg-indigo-200 flex items-center gap-2"
+                                    >
+                                        <Icon name="play" weight="fill" /> Aperçu
+                                    </button>
+
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const data = JSON.parse(jsonInput);
+                                                if (!data.id) throw new Error("L'objet doit avoir un 'id'.");
+
+                                                // Sauvegarde dans Firestore
+                                                await setDoc(doc(db, "structure_automatismes", data.id), data);
+                                                toast.success(`Exercice "${data.id}" sauvegardé !`);
+
+                                                // Mettre à jour le programme local si c'est un nouvel exo
+                                                fetchProgram();
+                                            } catch (e) {
+                                                toast.error("Erreur : " + e.message);
+                                            }
+                                        }}
+                                        className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 flex items-center gap-2 shadow-lg"
+                                    >
+                                        <Icon name="floppy-disk" weight="fill" /> Sauvegarder
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ZONE DE TRAVAIL (SPLIT SCREEN) */}
+                            <div className="grid lg:grid-cols-2 gap-6 flex-1 min-h-[600px]">
+
+                                {/* COLONNE GAUCHE : CODE */}
+                                <div className="flex flex-col">
+                                    <label className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Configuration JSON</label>
+                                    <textarea
+                                        className="flex-1 w-full p-4 font-mono text-xs md:text-sm bg-slate-900 text-green-400 rounded-xl border-2 border-slate-700 focus:border-indigo-500 outline-none leading-relaxed"
+                                        value={jsonInput}
+                                        onChange={e => setJsonInput(e.target.value)}
+                                        spellCheck="false"
+                                        placeholder='Collez votre JSON ici...'
+                                    ></textarea>
+                                    <div className="mt-2 text-xs text-slate-400 flex justify-between">
+                                        <span>Syntaxe stricte : guillemets doubles " obligatoires pour les clés.</span>
+                                        <button onClick={() => setJsonInput(JSON.stringify(JSON.parse(jsonInput), null, 2))} className="text-indigo-600 hover:underline">Formater</button>
                                     </div>
-                                    {uploadedUrl && (
-                                        <div className="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs break-all font-mono cursor-pointer hover:bg-emerald-100" onClick={() => navigator.clipboard.writeText(uploadedUrl)}>
-                                            <span className="font-bold text-emerald-700">Lien :</span><br />{uploadedUrl}
+                                </div>
+
+                                {/* COLONNE DROITE : RENDU VISUEL */}
+                                <div className="bg-slate-100 rounded-xl border-2 border-slate-200 p-6 flex flex-col relative overflow-hidden">
+                                    <div className="flex justify-between items-center mb-4 z-10 relative">
+                                        <label className="text-xs font-bold text-slate-400 uppercase">Aperçu en direct</label>
+
+                                        <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                                            {[1, 2, 3].map(lvl => (
+                                                <button
+                                                    key={lvl}
+                                                    onClick={() => setPreviewLevel(lvl)}
+                                                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${previewLevel === lvl ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                >
+                                                    Niv {lvl}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Fond "Cahier" */}
+                                    <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#64748b_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+                                    {uploadedUrl ? ( // 'uploadedUrl' contient ici notre objet preview (hack rapide)
+                                        <div className="flex-1 flex flex-col items-center justify-center z-10 gap-6 animate-in fade-in slide-in-from-bottom-4">
+
+                                            {/* 1. LE MOTEUR VISUEL DYNAMIQUE */}
+                                            {PreviewEngine ? (
+                                                <div className="bg-white p-4 rounded-3xl shadow-lg border border-slate-200">
+                                                    <PreviewEngine config={uploadedUrl.visualConfig} />
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-slate-400 text-center">
+                                                    <Icon name="prohibit" size={32} className="mb-2 mx-auto opacity-50" />
+                                                    {uploadedUrl.visualEngine === 'NONE'
+                                                        ? "Aucun visuel requis"
+                                                        : `Moteur "${uploadedUrl.visualEngine}" introuvable ou non défini`}
+                                                </div>
+                                            )}
+
+                                            {/* 2. LA QUESTION */}
+                                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full">
+                                                <div className="text-sm font-bold text-slate-400 uppercase mb-1">Question</div>
+                                                <div className="text-xl font-black text-slate-800 mb-4">
+                                                    <MathText text={uploadedUrl.question} />
+                                                </div>
+
+                                                <div className="text-sm font-bold text-slate-400 uppercase mb-1">Correction & Variables</div>
+                                                <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 border border-slate-100">
+                                                    <MathText text={uploadedUrl.explanation || "Pas d'explication définie."} />
+                                                    <div className="mt-2 pt-2 border-t border-slate-200 text-indigo-600">
+                                                        {JSON.stringify(uploadedUrl.scope)}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 z-10">
+                                            <Icon name="paint-brush-broad" className="text-4xl mb-2 opacity-50" />
+                                            <p>Cliquez sur "Aperçu" pour tester.</p>
                                         </div>
                                     )}
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2"><Icon name="images" /> Galerie Récente</h3>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {galleryImages.map((img, i) => (
-                                            <div key={i} className="aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:ring-2 ring-indigo-500 group relative" onClick={() => { navigator.clipboard.writeText(img.url); alert("Lien copié !"); }}>
-                                                <img src={img.url} className="w-full h-full object-cover" alt="asset" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex flex-col h-full">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h3 className="font-bold text-indigo-900"><Icon name="code" /> JSON du Sujet</h3>
-                                    <button onClick={() => setJsonInput("")} className="text-xs text-red-500 font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50">Effacer</button>
-                                </div>
-                                <textarea className="flex-1 w-full p-4 font-mono text-xs border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none bg-slate-50 min-h-[400px]" value={jsonInput} onChange={e => setJsonInput(e.target.value)} placeholder='{ "id": "...", "published": false, ... }'></textarea>
-                                <button onClick={saveSubject} className="mt-4 w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-md flex justify-center items-center gap-2">
-                                    <Icon name="floppy-disk" weight="bold" /> Enregistrer le Sujet
-                                </button>
                             </div>
                         </div>
                     )}

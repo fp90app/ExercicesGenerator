@@ -426,7 +426,15 @@ export const useAuth = () => {
                         const oldMax = Math.max(countVisuel - 1, countMemoire);
 
                         if (oldMax < 3) {
-                            const gain = safeLevel * 10;
+                            // --- MODIFICATION POUR LIRE LE JSON DYNAMIQUE ---
+                            // On regarde si une valeur personnalisée est passée dans extraData
+                            let gain = safeLevel * 10; // Valeur par défaut
+
+                            // Si l'exercice envoie une récompense personnalisée (depuis le JSON)
+                            if (extraData && extraData.xp_reward) {
+                                gain = parseInt(extraData.xp_reward);
+                            }
+                            // ------------------------------------------------
                             xpGain += gain;
                             xpDetails.exo = gain;
 
