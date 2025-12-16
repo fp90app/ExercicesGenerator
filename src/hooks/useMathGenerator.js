@@ -122,11 +122,21 @@ export const useMathGenerator = (exerciseId, level = 1) => {
                 if (expText) expText = expText.replace(regex, val);
             });
 
-            // D. RÉPONSE
+            // D. RÉPONSE (VERSION CORRIGÉE)
             let correct = levelData.correct_answer || config.correct_answer;
-            if (typeof correct === 'string' && correct.startsWith('{')) {
-                const varName = correct.replace(/[{}]/g, '');
-                correct = scope[varName];
+
+            // Si c'est du texte, on remplace toutes les variables {x}, {sum}, etc. par leur valeur
+            if (typeof correct === 'string') {
+                // 1. On récupère toutes les variables disponibles (x, sum, prod, v...)
+                // 2. On trie par longueur décroissante (IMPORTANT : pour ne pas remplacer {xy} par {x}y par erreur)
+                const keys = Object.keys(scope).sort((a, b) => b.length - a.length);
+
+                // 3. On remplace chaque {variable} par sa valeur
+                keys.forEach(key => {
+                    // Crée une "recherche globale" pour remplacer toutes les occurrences
+                    const regex = new RegExp(`{${key}}`, 'g');
+                    correct = correct.replace(regex, scope[key]);
+                });
             }
 
             // E. CONFIG VISUELLE

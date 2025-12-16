@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc } from "firebase/firestore"; // J'ai retiré les imports inutiles
 import { db } from "../../firebase";
+import * as math from 'mathjs';
 
 
 
@@ -67,13 +68,70 @@ const StandardGame = (props) => {
     const handleValidate = () => {
         if (!questionData) return;
 
-        // Normalisation de la réponse (points/virgules)
-        const cleanUser = userAnswer.replace(',', '.').trim();
-        const cleanCorrect = String(questionData.correct).replace(',', '.').trim();
+        // --- 1. FONCTION DE NETTOYAGE ---
+        const normalize = (str) => {
+            if (!str) return "";
+            return String(str)
+                .replace(/²/g, '^2')       // Transforme le petit ²
+                .replace(/,/g, '.')        // Virgule -> Point
+                .replace(/÷/g, '/')        // Signe division
+                .replace(/×/g, '*')        // Signe multiplication visuel
+                .trim();
+        };
 
-        // Tolérance pour les décimales (0.1 près)
-        const isCorrect = Math.abs(parseFloat(cleanUser) - parseFloat(cleanCorrect)) < 0.1;
+        // On garde les espaces pour MathJS parfois (ex: "2 x" est mieux géré que "2x" selon config)
+        // Mais pour ton cas polynomial, supprimer les espaces est plus sûr pour la comparaison texte.
+        // On va créer une version pour le texte (sans espace) et une pour le calcul.
 
+        const rawUser = normalize(userAnswer);
+        const rawCorrect = normalize(questionData.correct);
+
+        const cleanUserText = rawUser.replace(/\s+/g, '').toLowerCase();
+        const cleanCorrectText = rawCorrect.replace(/\s+/g, '').toLowerCase();
+
+        console.log(`Tentative validation : "${cleanUserText}" vs "${cleanCorrectText}"`);
+
+        let isCorrect = false;
+
+        // --- 2. VALIDATION TEXTUELLE (Prioritaire & Rapide) ---
+        // Si l'élève a écrit exactement ce qu'on attendait
+        if (cleanUserText === cleanCorrectText) {
+            isCorrect = true;
+        }
+
+        // --- 3. VALIDATION MATHÉMATIQUE (Si texte échoue) ---
+        // C'est ici que la magie opère pour l'ordre des termes (28+11x+x^2)
+        else {
+            try {
+                // On définit une portée (scope) avec des valeurs arbitraires pour les lettres
+                // On utilise des nombres décimaux premiers pour éviter les "faux positifs" (ex: 1+1 = 2*1)
+                const scope = {
+                    x: 11.123,
+                    y: 11.123,
+                    a: 11.123,
+                    b: 11.123,
+                    c: 11.123,
+                    t: 11.123
+                };
+
+                // On évalue les deux expressions
+                // MathJS gère très bien "2x" ou "x^2"
+                const valUser = math.evaluate(rawUser, scope);
+                const valCorrect = math.evaluate(rawCorrect, scope);
+
+                // On compare avec une petite tolérance (epsilon) pour les erreurs d'arrondi flottant
+                if (Math.abs(valUser - valCorrect) < 0.0001) {
+                    isCorrect = true;
+                    console.log("Validation mathématique réussie !");
+                }
+            } catch (e) {
+                // Si l'élève a écrit n'importe quoi (ex: "x++2"), math.evaluate va planter.
+                // On ignore l'erreur, isCorrect reste false.
+                console.log("Erreur d'évaluation mathématique (syntaxe invalide) :", e.message);
+            }
+        }
+
+        // --- 4. GESTION DU RÉSULTAT ---
         if (isCorrect) {
             if (onSound) onSound('CORRECT');
             setFeedback('CORRECT');
@@ -83,6 +141,7 @@ const StandardGame = (props) => {
             setFeedback('WRONG');
         }
     };
+
 
     const handleNext = () => {
         setFeedback(null);
@@ -208,6 +267,58 @@ const StandardGame = (props) => {
                     </div>
 
                     {/* ZONE DE RÉPONSE */}
+                    {/* --- BARRE D'OUTILS MATHÉMATIQUES /  CLAVIER VIRTUEL --- */}
+
+                    {/* --- CLAVIER VIRTUEL ERGONOMIQUE (V3) --- */}
+                    <div className="mt-4 mb-2 animate-in slide-in-from-bottom-4 fade-in duration-500 w-full max-w-4xl mx-auto">
+                        <div className="flex flex-col md:flex-row gap-3">
+
+                            {/* ZONE 1 : CHIFFRES (Grille 5 colonnes x 2 lignes) */}
+                            <div className="grid grid-cols-5 gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200 shadow-sm md:w-1/2">
+                                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(num => (
+                                    <button
+                                        key={num}
+                                        onClick={() => setUserAnswer(prev => prev + num)}
+                                        disabled={feedback !== null}
+                                        className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-slate-200 font-black text-slate-700 text-xl active:border-b-0 active:translate-y-[2px] transition-all hover:bg-slate-50 disabled:opacity-50"
+                                    >
+                                        {num}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* ZONE 2 : ALGÈBRE (Grille auto-adaptative) */}
+                            <div className="flex-1 p-2 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm md:w-1/2">
+                                <div className="grid grid-cols-6 gap-1.5">
+                                    {/* On combine la config JSON et une liste par défaut très complète */}
+                                    {(
+                                        (config?.common_config?.custom_keyboard) ||
+                                        (questionData?.custom_keyboard) ||
+                                        ['x', 'y', 'a', 'b', 't', '²', '+', '-', '(', ')', '^'] // Fallback complet
+                                    ).map(char => (
+                                        <button
+                                            key={char}
+                                            onClick={() => setUserAnswer(prev => prev + char)}
+                                            disabled={feedback !== null}
+                                            className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-indigo-200 font-bold text-indigo-600 text-lg active:border-b-0 active:translate-y-[2px] transition-all hover:bg-indigo-50 disabled:opacity-50"
+                                        >
+                                            {char}
+                                        </button>
+                                    ))}
+
+                                    {/* Touche Retour Arrière (Prend la dernière place) */}
+                                    <button
+                                        onClick={() => setUserAnswer(prev => prev.slice(0, -1))}
+                                        disabled={feedback !== null}
+                                        className="h-12 bg-red-100 rounded-lg shadow-sm border-b-2 border-red-200 text-red-500 active:border-b-0 active:translate-y-[2px] transition-all hover:bg-red-200 flex items-center justify-center disabled:opacity-50 col-span-1"
+                                    >
+                                        <Icon name="backspace" weight="bold" />
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
                     <div className="mb-8">
                         <input
                             type="text" // 'text' permet de gérer les virgules plus facilement si besoin

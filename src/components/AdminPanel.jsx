@@ -144,8 +144,8 @@ const AdminPanel = ({ user, onBack }) => {
     const [previewLevel, setPreviewLevel] = useState(1);
     const [currentDocId, setCurrentDocId] = useState("");
 
-    const PreviewEngine = uploadedUrl && uploadedUrl.visualEngine
-        ? ENGINE_REGISTRY[uploadedUrl.visualEngine]
+    const PreviewEngine = previewData && previewData.visualEngine
+        ? ENGINE_REGISTRY[previewData.visualEngine]
         : null;
 
     // --- CHARGEMENT INITIAL ---
@@ -178,8 +178,12 @@ const AdminPanel = ({ user, onBack }) => {
             const docRef = doc(db, "structure_automatismes", id);
             const snap = await getDoc(docRef);
             if (snap.exists()) {
-                setJsonInput(JSON.stringify(snap.data(), null, 2));
+                const data = snap.data();
+                const jsonString = JSON.stringify(data, null, 2);
+                setJsonInput(jsonString);
                 setCurrentDocId(id);
+                // ON FORCE LA MISE A JOUR DE L'APERÇU ICI
+                setPreviewData(generatePreviewData(jsonString, 1));
                 toast.success("Exercice chargé !");
             } else { toast.error("Introuvable"); }
         } catch (e) { toast.error(e.message); }
@@ -688,25 +692,88 @@ const AdminPanel = ({ user, onBack }) => {
                                 </div>
                             </div>
 
-                            {/* COLONNE DROITE : GESTION VIP */}
-                            <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 h-fit">
-                                <h3 className="font-bold text-lg text-amber-800 mb-2 flex items-center gap-2"><Icon name="star" weight="fill" /> Profs Partenaires (VIP)</h3>
-                                <p className="text-sm text-amber-700 mb-6">Ajoute ici les IDs des collègues. Leurs élèves seront automatiquement Premium.</p>
-                                <div className="flex gap-2 mb-4">
-                                    <input id="vipInput" type="text" placeholder="ID Prof..." className="flex-1 p-2 rounded-lg border border-amber-200 text-sm outline-none focus:border-amber-500" />
-                                    <button onClick={() => { const val = document.getElementById('vipInput').value; handleAddVip(val); document.getElementById('vipInput').value = ""; }} className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-700">Ajouter</button>
+                            {/* COLONNE DROITE : RENDU VISUEL */}
+                            <div className="bg-slate-100 rounded-xl border-2 border-slate-200 p-6 flex flex-col relative overflow-hidden min-h-[600px]">
+
+                                {/* Header avec boutons de niveau */}
+                                <div className="flex justify-between items-center mb-4 z-10 relative">
+                                    <label className="text-xs font-bold text-slate-400 uppercase">Aperçu en direct</label>
+
+                                    <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+                                        {[1, 2, 3].map(lvl => (
+                                            <button
+                                                key={lvl}
+                                                onClick={() => {
+                                                    setPreviewLevel(lvl);
+                                                    // On régénère immédiatement l'aperçu quand on change de niveau
+                                                    if (jsonInput) setPreviewData(generatePreviewData(jsonInput, lvl));
+                                                }}
+                                                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${previewLevel === lvl ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                            >
+                                                Niv {lvl}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                    {(config.vipTeacherIds || []).map(id => (
-                                        <div key={id} className="flex justify-between items-center bg-white p-2 px-3 rounded-lg border border-amber-100 shadow-sm">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-sm text-slate-800">{vipDetails[id] || "Chargement..."}</span>
-                                                <span className="font-mono text-[10px] text-slate-400">{id}</span>
+
+                                {/* Fond "Cahier" */}
+                                <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#64748b_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+                                {/* AFFICHAGE DE L'APERÇU (Basé sur previewData) */}
+                                {previewData && !previewData.error ? (
+                                    <div className="flex-1 flex flex-col items-center justify-start z-10 gap-6 animate-in fade-in slide-in-from-bottom-4 overflow-y-auto">
+
+                                        {/* 1. LE MOTEUR VISUEL DYNAMIQUE */}
+                                        {PreviewEngine ? (
+                                            <div className="bg-white p-4 rounded-3xl shadow-lg border border-slate-200 transform scale-90 origin-top">
+                                                <PreviewEngine config={previewData.visualConfig} />
                                             </div>
-                                            <button onClick={() => handleRemoveVip(id)} className="text-red-400 hover:text-red-600"><Icon name="trash" size={16} /></button>
+                                        ) : (
+                                            // Message discret si pas de moteur
+                                            previewData.visualEngine !== 'NONE' && (
+                                                <div className="text-xs text-red-400">Moteur {previewData.visualEngine} introuvable</div>
+                                            )
+                                        )}
+
+                                        {/* 2. LA QUESTION */}
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full">
+                                            <div className="text-sm font-bold text-slate-400 uppercase mb-1">Question (Niveau {previewLevel})</div>
+                                            <div className="text-xl font-black text-slate-800 mb-4">
+                                                <MathText text={previewData.question} />
+                                            </div>
+
+                                            <div className="text-sm font-bold text-slate-400 uppercase mb-1">Réponse Attendue</div>
+                                            <div className="text-lg font-bold text-emerald-600 mb-4 bg-emerald-50 p-2 rounded border border-emerald-100">
+                                                {previewData.correct}
+                                            </div>
+
+                                            <div className="text-sm font-bold text-slate-400 uppercase mb-1">Correction & Variables</div>
+                                            <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 border border-slate-100">
+                                                <div className="mb-2">
+                                                    <MathText text={previewData.explanation || "Pas d'explication définie."} />
+                                                </div>
+                                                <div className="mt-2 pt-2 border-t border-slate-200 text-indigo-600 whitespace-pre-wrap">
+                                                    {JSON.stringify(previewData.scope, null, 2)}
+                                                </div>
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 z-10">
+                                        {previewData?.error ? (
+                                            <div className="text-red-500 bg-red-50 p-4 rounded-xl border border-red-200 max-w-xs text-center">
+                                                <Icon name="warning" className="text-2xl mb-2 mx-auto" />
+                                                <p className="font-bold text-sm">Erreur JSON</p>
+                                                <p className="text-xs mt-1">{previewData.error}</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Icon name="paint-brush-broad" className="text-4xl mb-2 opacity-50" />
+                                                <p>Modifiez le JSON pour voir l'aperçu.</p>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -903,7 +970,7 @@ const AdminPanel = ({ user, onBack }) => {
                                             const val = e.target.value;
                                             if (!val) return;
 
-                                            // 1. CAS SPÉCIAL : DÉMO (Injection directe du JSON)
+                                            // 1. CAS SPÉCIAL : DÉMO (Injection directe du JSON pour tester sans DB)
                                             if (val === "auto_pythagore_demo") {
                                                 const demoJson = {
                                                     "id": "auto_pythagore_demo",
@@ -928,7 +995,6 @@ const AdminPanel = ({ user, onBack }) => {
                                                             "explanation_template": "On utilise Pythagore : $$BC^2 = AB^2 + AC^2$$ $$BC^2 = {c1}^2 + {c2}^2 = {hyp_carre}$$ Donc $BC = \\sqrt{{hyp_carre}} = {hyp}$",
                                                             "visual_config_override": {
                                                                 "vals": { "AB": "{c1}", "AC": "{c2}" },
-                                                                // AJOUT DES UNITÉS ICI POUR ÉVITER 'UNDEFINED'
                                                                 "given": {
                                                                     "AB": { "val": "{c1}", "unit": "" },
                                                                     "AC": { "val": "{c2}", "unit": "" }
@@ -941,16 +1007,20 @@ const AdminPanel = ({ user, onBack }) => {
                                                 toast.success("Démo chargée !");
                                                 setTimeout(() => setPreviewData(generatePreviewData(JSON.stringify(demoJson), 1)), 100);
                                             }
+                                            // 2. CAS STANDARD : CHARGEMENT DEPUIS LA BASE DE DONNÉES (C'est ce qui manquait !)
+                                            else {
+                                                loadExerciseIntoEditor(val);
+                                            }
                                         }}
                                     >
                                         <option value="">-- Charger un exercice --</option>
 
-                                        {/* --- L'OPTION QUI TE MANQUAIT --- */}
+                                        {/* Option de test rapide */}
                                         <option value="auto_pythagore_demo" className="font-bold text-indigo-600 bg-indigo-50">
                                             ✨ Pythagore Demo (Test)
                                         </option>
 
-                                        {/* LISTE DYNAMIQUE */}
+                                        {/* LISTE DYNAMIQUE (Depuis ton programme) */}
                                         {program.map(cat => (
                                             <optgroup key={cat.id} label={cat.title}>
                                                 {cat.exos.map(e => (
@@ -966,13 +1036,15 @@ const AdminPanel = ({ user, onBack }) => {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => {
-                                            // Fonction de Prévisualisation (Rafraîchir les nombres)
-                                            const preview = generatePreviewData(jsonInput, 1); // Test niveau 1 par défaut
-                                            if (preview) {
-                                                setUploadedUrl(preview); // On utilise cet état temporairement pour stocker la preview
+                                            // CORRECTION 1 : On utilise 'previewLevel' (l'onglet sélectionné) au lieu de 1
+                                            const preview = generatePreviewData(jsonInput, previewLevel);
+
+                                            if (preview && !preview.error) {
+                                                // CORRECTION 2 : On met à jour la BONNE variable d'état
+                                                setPreviewData(preview);
                                                 toast.success("Aperçu généré !");
                                             } else {
-                                                toast.error("Erreur JSON. Vérifiez la syntaxe.");
+                                                toast.error(preview?.error || "Erreur JSON. Vérifiez la syntaxe.");
                                             }
                                         }}
                                         className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-bold hover:bg-indigo-200 flex items-center gap-2"
@@ -1023,7 +1095,9 @@ const AdminPanel = ({ user, onBack }) => {
                                 </div>
 
                                 {/* COLONNE DROITE : RENDU VISUEL */}
-                                <div className="bg-slate-100 rounded-xl border-2 border-slate-200 p-6 flex flex-col relative overflow-hidden">
+                                <div className="bg-slate-100 rounded-xl border-2 border-slate-200 p-6 flex flex-col relative overflow-hidden min-h-[600px]">
+
+                                    {/* Header avec boutons de niveau */}
                                     <div className="flex justify-between items-center mb-4 z-10 relative">
                                         <label className="text-xs font-bold text-slate-400 uppercase">Aperçu en direct</label>
 
@@ -1031,7 +1105,11 @@ const AdminPanel = ({ user, onBack }) => {
                                             {[1, 2, 3].map(lvl => (
                                                 <button
                                                     key={lvl}
-                                                    onClick={() => setPreviewLevel(lvl)}
+                                                    onClick={() => {
+                                                        setPreviewLevel(lvl);
+                                                        // On régénère immédiatement l'aperçu quand on change de niveau
+                                                        if (jsonInput) setPreviewData(generatePreviewData(jsonInput, lvl));
+                                                    }}
                                                     className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${previewLevel === lvl ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                                                 >
                                                     Niv {lvl}
@@ -1043,44 +1121,59 @@ const AdminPanel = ({ user, onBack }) => {
                                     {/* Fond "Cahier" */}
                                     <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#64748b_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                                    {uploadedUrl ? ( // 'uploadedUrl' contient ici notre objet preview (hack rapide)
-                                        <div className="flex-1 flex flex-col items-center justify-center z-10 gap-6 animate-in fade-in slide-in-from-bottom-4">
+                                    {/* AFFICHAGE DE L'APERÇU (Basé sur previewData) */}
+                                    {previewData && !previewData.error ? (
+                                        <div className="flex-1 flex flex-col items-center justify-start z-10 gap-6 animate-in fade-in slide-in-from-bottom-4 overflow-y-auto">
 
                                             {/* 1. LE MOTEUR VISUEL DYNAMIQUE */}
                                             {PreviewEngine ? (
-                                                <div className="bg-white p-4 rounded-3xl shadow-lg border border-slate-200">
-                                                    <PreviewEngine config={uploadedUrl.visualConfig} />
+                                                <div className="bg-white p-4 rounded-3xl shadow-lg border border-slate-200 transform scale-90 origin-top">
+                                                    <PreviewEngine config={previewData.visualConfig} />
                                                 </div>
                                             ) : (
-                                                <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-slate-400 text-center">
-                                                    <Icon name="prohibit" size={32} className="mb-2 mx-auto opacity-50" />
-                                                    {uploadedUrl.visualEngine === 'NONE'
-                                                        ? "Aucun visuel requis"
-                                                        : `Moteur "${uploadedUrl.visualEngine}" introuvable ou non défini`}
-                                                </div>
+                                                // Message discret si pas de moteur
+                                                previewData.visualEngine !== 'NONE' && (
+                                                    <div className="text-xs text-red-400">Moteur {previewData.visualEngine} introuvable</div>
+                                                )
                                             )}
 
                                             {/* 2. LA QUESTION */}
                                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full">
-                                                <div className="text-sm font-bold text-slate-400 uppercase mb-1">Question</div>
+                                                <div className="text-sm font-bold text-slate-400 uppercase mb-1">Question (Niveau {previewLevel})</div>
                                                 <div className="text-xl font-black text-slate-800 mb-4">
-                                                    <MathText text={uploadedUrl.question} />
+                                                    <MathText text={previewData.question} />
+                                                </div>
+
+                                                <div className="text-sm font-bold text-slate-400 uppercase mb-1">Réponse Attendue</div>
+                                                <div className="text-lg font-bold text-emerald-600 mb-4 bg-emerald-50 p-2 rounded border border-emerald-100">
+                                                    {previewData.correct}
                                                 </div>
 
                                                 <div className="text-sm font-bold text-slate-400 uppercase mb-1">Correction & Variables</div>
                                                 <div className="bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-600 border border-slate-100">
-                                                    <MathText text={uploadedUrl.explanation || "Pas d'explication définie."} />
-                                                    <div className="mt-2 pt-2 border-t border-slate-200 text-indigo-600">
-                                                        {JSON.stringify(uploadedUrl.scope)}
+                                                    <div className="mb-2">
+                                                        <MathText text={previewData.explanation || "Pas d'explication définie."} />
+                                                    </div>
+                                                    <div className="mt-2 pt-2 border-t border-slate-200 text-indigo-600 whitespace-pre-wrap">
+                                                        {JSON.stringify(previewData.scope, null, 2)}
                                                     </div>
                                                 </div>
                                             </div>
-
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col items-center justify-center text-slate-400 z-10">
-                                            <Icon name="paint-brush-broad" className="text-4xl mb-2 opacity-50" />
-                                            <p>Cliquez sur "Aperçu" pour tester.</p>
+                                            {previewData?.error ? (
+                                                <div className="text-red-500 bg-red-50 p-4 rounded-xl border border-red-200 max-w-xs text-center">
+                                                    <Icon name="warning" className="text-2xl mb-2 mx-auto" />
+                                                    <p className="font-bold text-sm">Erreur JSON</p>
+                                                    <p className="text-xs mt-1">{previewData.error}</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Icon name="paint-brush-broad" className="text-4xl mb-2 opacity-50" />
+                                                    <p>Modifiez le JSON pour voir l'aperçu.</p>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </div>
