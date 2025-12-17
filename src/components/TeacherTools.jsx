@@ -460,10 +460,10 @@ const StudentDetailModal = ({ s, onClose, classesList, onEdit, onShare, onDelete
                                             <div className="p-2 space-y-1">
                                                 {cat.exos.map(exo => {
                                                     // Vérifications
-                                                    const isTechnicallyReady = PROCEDURAL_EXOS.includes(exo.id) || (QUESTIONS_DB[exo.id] && QUESTIONS_DB[exo.id][1] && QUESTIONS_DB[exo.id][1].length > 0);
+                                                    const isTechnicallyReady = true;
+
                                                     const isAllowedForStudent = studentAllowedIds.includes(exo.id);
                                                     const isAvailable = isTechnicallyReady && isAllowedForStudent;
-
                                                     // Si bloqué -> Cadenas
                                                     if (!isAvailable) {
                                                         return (

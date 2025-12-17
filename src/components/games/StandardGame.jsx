@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { doc, getDoc } from "firebase/firestore"; // J'ai retiré les imports inutiles
 import { db } from "../../firebase";
 import * as math from 'mathjs';
+import { processLevelData } from '../../utils/mathGenerators';
 
 
 
@@ -27,6 +28,8 @@ import ScratchScript from './ScratchBlock';
 // 1. NOUVEAU SYSTÈME (Wrapper)
 // =========================================================
 import PythagoreSystem from '../PythagoreSystem';
+import NumberLineSystem from '../NumberLineSystem';
+import CartesianSystem from '../CartesianSystem';
 
 // =========================================================
 // 1. COMPOSANT PRINCIPAL (Le "Routeur" Intelligent)
@@ -44,6 +47,15 @@ const StandardGame = (props) => {
     const [userAnswer, setUserAnswer] = useState("");
     const [feedback, setFeedback] = useState(null);
     const [showCalc, setShowCalc] = useState(false);
+
+    const [graphPoint, setGraphPoint] = useState(null); // Stocke le point placé par l'élève
+
+    // Reset quand la question change
+    useEffect(() => {
+        setFeedback(null);
+        setUserAnswer("");
+        setGraphPoint(null); // On remet à zéro
+    }, [questionData]);
 
     useEffect(() => {
         let timer;
@@ -64,6 +76,50 @@ const StandardGame = (props) => {
         setUserAnswer("");
     }, [config.id]);
 
+    // ... tes useState et useEffect sont ici ...
+
+    // --- CORRECTION : ON PLACE LE useMemo ICI (EN DEHORS DES IF) ---
+    const activeVisualConfig = useMemo(() => {
+        // Si les données ne sont pas prêtes ou si ce n'est pas le bon moteur, on ne fait rien
+        if (!questionData || questionData.visualEngine !== 'ENGINE_CARTESIAN') return null;
+
+        const isGraphMode = questionData.responseType === 'GRAPH_POINT';
+
+        // 1. Points de base (du JSON)
+        let pointsToShow = [...(questionData.visualConfig?.points || [])];
+
+        // 2. Point placé par l'élève (Bleu)
+        if (graphPoint) {
+            pointsToShow.push({
+                x: graphPoint.x,
+                y: graphPoint.y,
+                color: '#3b82f6',
+                label: '?',
+                shape: 'cross'
+            });
+        }
+
+        // 3. Correction (Vert) - Uniquement si c'est FAUX et qu'on est en mode graphique
+        if (feedback === 'WRONG' && isGraphMode) {
+            try {
+                const clean = questionData.correct.replace(/[()]/g, '');
+                const [cx, cy] = clean.split(';').map(Number);
+                if (!isNaN(cx) && !isNaN(cy)) {
+                    pointsToShow.push({
+                        x: cx,
+                        y: cy,
+                        color: '#10b981',
+                        label: 'Ok',
+                        showCorrection: true
+                    });
+                }
+            } catch (e) { }
+        }
+        return { ...questionData.visualConfig, points: pointsToShow };
+    }, [questionData, graphPoint, feedback]);
+
+
+
     // --- ACTIONS ---
     const handleValidate = () => {
         if (!questionData) return;
@@ -75,59 +131,54 @@ const StandardGame = (props) => {
                 .replace(/²/g, '^2')       // Transforme le petit ²
                 .replace(/,/g, '.')        // Virgule -> Point
                 .replace(/÷/g, '/')        // Signe division
+                .replace(/:/g, '/')        // Deux points -> Division
                 .replace(/×/g, '*')        // Signe multiplication visuel
                 .trim();
         };
 
-        // On garde les espaces pour MathJS parfois (ex: "2 x" est mieux géré que "2x" selon config)
-        // Mais pour ton cas polynomial, supprimer les espaces est plus sûr pour la comparaison texte.
-        // On va créer une version pour le texte (sans espace) et une pour le calcul.
-
         const rawUser = normalize(userAnswer);
         const rawCorrect = normalize(questionData.correct);
 
+        // Version sans espaces pour la comparaison textuelle stricte
         const cleanUserText = rawUser.replace(/\s+/g, '').toLowerCase();
         const cleanCorrectText = rawCorrect.replace(/\s+/g, '').toLowerCase();
 
-        console.log(`Tentative validation : "${cleanUserText}" vs "${cleanCorrectText}"`);
+        console.log(`Validation : "${cleanUserText}" vs "${cleanCorrectText}"`);
 
         let isCorrect = false;
 
         // --- 2. VALIDATION TEXTUELLE (Prioritaire & Rapide) ---
-        // Si l'élève a écrit exactement ce qu'on attendait
+        // Si l'élève a écrit exactement ce qu'on attendait (ex: "x+1")
         if (cleanUserText === cleanCorrectText) {
             isCorrect = true;
         }
 
-        // --- 3. VALIDATION MATHÉMATIQUE (Si texte échoue) ---
-        // C'est ici que la magie opère pour l'ordre des termes (28+11x+x^2)
+        // --- 3. VALIDATION MATHÉMATIQUE (Algèbre & Fractions) ---
+        // Gère l'ordre (x+1 = 1+x) et les calculs (5/2 = 2.5)
         else {
             try {
-                // On définit une portée (scope) avec des valeurs arbitraires pour les lettres
-                // On utilise des nombres décimaux premiers pour éviter les "faux positifs" (ex: 1+1 = 2*1)
+                // Portée élargie pour couvrir toutes les lettres possibles dans tes exos
                 const scope = {
-                    x: 11.123,
-                    y: 11.123,
-                    a: 11.123,
-                    b: 11.123,
-                    c: 11.123,
-                    t: 11.123
+                    x: 11.123, y: 11.123, z: 11.123,
+                    a: 11.123, b: 11.123, c: 11.123,
+                    k: 11.123, n: 11.123, m: 11.123,
+                    t: 11.123, u: 11.123, v: 11.123
                 };
 
-                // On évalue les deux expressions
-                // MathJS gère très bien "2x" ou "x^2"
+                // On évalue les deux expressions mathématiquement
+                // Cela transforme "5/2" en 2.5 et "x+x" en 22.246
                 const valUser = math.evaluate(rawUser, scope);
                 const valCorrect = math.evaluate(rawCorrect, scope);
 
-                // On compare avec une petite tolérance (epsilon) pour les erreurs d'arrondi flottant
+                // Comparaison avec tolérance (0.0001) pour les flottants
                 if (Math.abs(valUser - valCorrect) < 0.0001) {
                     isCorrect = true;
                     console.log("Validation mathématique réussie !");
                 }
             } catch (e) {
-                // Si l'élève a écrit n'importe quoi (ex: "x++2"), math.evaluate va planter.
-                // On ignore l'erreur, isCorrect reste false.
-                console.log("Erreur d'évaluation mathématique (syntaxe invalide) :", e.message);
+                // Si l'élève écrit une syntaxe invalide (ex: "x++2" ou "3..5")
+                // math.evaluate plante, on ignore et isCorrect reste false.
+                console.log("Syntaxe mathématique invalide :", e.message);
             }
         }
 
@@ -142,7 +193,6 @@ const StandardGame = (props) => {
         }
     };
 
-
     const handleNext = () => {
         setFeedback(null);
         setUserAnswer("");
@@ -156,6 +206,22 @@ const StandardGame = (props) => {
             // On envoie aussi la récompense définie dans le JSON
             if (onFinish) onFinish(score, { xp_reward: questionData.xp_reward }); // Sauvegarde
         }
+    };
+
+
+    // --- FONCTION MANQUANTE : GESTION DU CLIC SUR LE GRAPHIQUE ---
+    const handleGraphClick = (coords) => {
+        if (feedback) return; // On bloque si déjà validé
+
+        // Snap (Arrondi) au 0.5 le plus proche pour éviter les décimales infinies
+        const x = Math.round(coords.x * 2) / 2;
+        const y = Math.round(coords.y * 2) / 2;
+
+        setGraphPoint({ x, y });
+
+        // Astuce : On remplit automatiquement la réponse texte "(x;y)"
+        // Cela permet à ton système de validation existant (handleValidate) de fonctionner sans changement !
+        setUserAnswer(`(${x};${y})`);
     };
 
     // --- C. AFFICHAGE DYNAMIQUE ---
@@ -241,6 +307,189 @@ const StandardGame = (props) => {
             );
         }
 
+
+        else if (questionData.visualEngine === 'ENGINE_NUMBER_LINE') {
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                    <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border border-slate-200 relative">
+
+                        {/* --- MODIFICATION ICI : Header avec le bouton Fermer intégré --- */}
+                        <div className="flex justify-between items-start mb-6 gap-4">
+                            <h2 className="text-xl font-black text-slate-800">
+                                <MathText text={questionData.question} />
+                            </h2>
+
+                            <div className="flex items-center gap-2">
+                                {/* Badge Numéro Question */}
+                                <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">
+                                    Q{step + 1}/10
+                                </div>
+
+                                {/* BOUTON FERMER (Déplacé ici pour ne plus gêner le son) */}
+                                <button
+                                    onClick={onBack}
+                                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                >
+                                    <Icon name="x" weight="bold" />
+                                </button>
+                            </div>
+                        </div>
+                        {/* --------------------------------------------------------- */}
+
+                        {/* VISUEL DROITE GRADUÉE */}
+                        <div className="mb-8 h-40">
+                            <NumberLineSystem config={questionData.visualConfig} highlight={feedback !== null} />
+                        </div>
+
+                        {/* INPUT RÉPONSE */}
+                        <div className="flex gap-4 items-center mb-6">
+                            <div className="flex-1">
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    disabled={feedback !== null}
+                                    autoFocus
+                                    placeholder="Abscisse..."
+                                    className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
+                                        feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
+                                            'border-slate-200 focus:border-indigo-500'
+                                        }`}
+                                    onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                />
+                            </div>
+
+                            {!feedback ? (
+                                <button onClick={handleValidate} disabled={!userAnswer} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-black transition-all shadow-lg flex items-center gap-2">
+                                    <Icon name="check" /> Valider
+                                </button>
+                            ) : (
+                                <button onClick={handleNext} className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2">
+                                    Suivant <Icon name="arrow-right" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* FEEDBACK */}
+                        {feedback && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
+                                <div className="font-bold mb-1 flex items-center gap-2">
+                                    <Icon name="info" /> Correction
+                                </div>
+                                <MathText text={questionData.explanation} />
+                            </div>
+                        )}
+
+                        {/* J'AI SUPPRIMÉ L'ANCIEN BOUTON "ABSOLUTE" QUI ÉTAIT ICI */}
+                    </div>
+                </div>
+            );
+        }
+
+
+
+
+        else if (questionData.visualEngine === 'ENGINE_CARTESIAN') {
+
+            const isGraphMode = questionData.responseType === 'GRAPH_POINT';
+
+            // On utilise la config calculée tout en haut du fichier !
+            // (Plus de useMemo ici, donc plus d'erreur)
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                    <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border border-slate-200 relative">
+
+                        {/* EN-TÊTE */}
+                        <div className="flex justify-between items-start mb-6 gap-4">
+                            <div>
+                                {isGraphMode && <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Interactif</div>}
+                                <h2 className="text-xl font-black text-slate-800"><MathText text={questionData.question} /></h2>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">Q{step + 1}/10</div>
+                                <button onClick={onBack} className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 rounded-full"><Icon name="x" weight="bold" /></button>
+                            </div>
+                        </div>
+
+                        {/* GRAPHIQUE */}
+                        <div className="mb-6 flex justify-center relative">
+                            <div className="w-full max-w-[400px]">
+                                <CartesianSystem
+                                    config={activeVisualConfig}
+                                    onClick={isGraphMode ? handleGraphClick : null}
+                                />
+                            </div>
+                            {isGraphMode && !graphPoint && !feedback && (
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-600/90 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg animate-bounce pointer-events-none">
+                                    Clique sur le repère
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ZONE DE RÉPONSE */}
+                        {isGraphMode ? (
+                            <div className="mb-6">
+                                <p className="text-center text-sm text-slate-500 mb-4 font-bold h-6 transition-all">
+                                    {graphPoint ? (
+                                        <span className="text-indigo-600 flex items-center justify-center gap-2">
+                                            <Icon name="map-pin" weight="fill" /> Point placé !
+                                        </span>
+                                    ) : (
+                                        <span className="opacity-50">Clique sur le graphique pour placer le point</span>
+                                    )}
+                                </p>
+                                {!feedback ? (
+                                    <button onClick={handleValidate} disabled={!graphPoint} className="w-full bg-slate-900 text-white px-6 py-4 rounded-xl font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <Icon name="check" weight="bold" /> Valider
+                                    </button>
+                                ) : (
+                                    <button onClick={handleNext} className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg">
+                                        Suivant <Icon name="arrow-right" weight="bold" />
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex gap-4 items-center mb-6">
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        value={userAnswer}
+                                        onChange={(e) => setUserAnswer(e.target.value)}
+                                        disabled={feedback !== null}
+                                        autoFocus
+                                        placeholder="Ex: (2;-3)"
+                                        className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
+                                            feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
+                                                'border-slate-300 bg-slate-50 text-slate-800 focus:border-indigo-600'
+                                            }`}
+                                        onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                    />
+                                </div>
+                                {!feedback ? (
+                                    <button onClick={handleValidate} disabled={!userAnswer} className="bg-slate-900 text-white px-6 py-4 rounded-xl font-bold hover:bg-black flex items-center gap-2 shadow-lg"><Icon name="check" /></button>
+                                ) : (
+                                    <button onClick={handleNext} className="bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-lg"><Icon name="arrow-right" /></button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* FEEDBACK */}
+                        {feedback && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
+                                <div className={`font-bold mb-1 flex items-center gap-2 ${feedback === 'CORRECT' ? 'text-emerald-600' : 'text-red-500'}`}>
+                                    <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning'} weight="fill" />
+                                    {feedback === 'CORRECT' ? 'Bonne réponse !' : 'Erreur...'}
+                                </div>
+                                <MathText text={questionData.explanation} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
         // 3. [NOUVEAU] MOTEUR GÉNÉRIQUE (Pour Carrés Parfaits et les autres)
         // C'est ce bloc qui va empêcher le crash !
         return (
@@ -257,7 +506,9 @@ const StandardGame = (props) => {
                     <div className="flex justify-between items-center mb-8">
                         <div>
                             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Question {step + 1} / 10</div>
-                            <h2 className="text-2xl font-black text-slate-800 leading-tight">
+
+                            {/* --- MODIFICATION 1 : AJOUT DE 'whitespace-pre-line' POUR LE RETOUR À LA LIGNE --- */}
+                            <h2 className="text-2xl font-black text-slate-800 leading-tight whitespace-pre-line">
                                 <MathText text={questionData.question} />
                             </h2>
                         </div>
@@ -266,75 +517,124 @@ const StandardGame = (props) => {
                         </button>
                     </div>
 
-                    {/* ZONE DE RÉPONSE */}
-                    {/* --- BARRE D'OUTILS MATHÉMATIQUES /  CLAVIER VIRTUEL --- */}
+                    {questionData.responseType === 'QCM' ? (
+                        // --- MODE QCM (Validation par Booléen) ---
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
+                            {questionData.options?.map((optionObj, idx) => {
+                                // ATTENTION : optionObj est maintenant un objet { value: "...", isCorrect: true/false }
 
-                    {/* --- CLAVIER VIRTUEL ERGONOMIQUE (V3) --- */}
-                    <div className="mt-4 mb-2 animate-in slide-in-from-bottom-4 fade-in duration-500 w-full max-w-4xl mx-auto">
-                        <div className="flex flex-col md:flex-row gap-3">
+                                const isCorrect = optionObj.isCorrect;
+                                // On compare simplement si l'utilisateur a cliqué sur CE bouton précis
+                                const isSelected = userAnswer === optionObj.value;
 
-                            {/* ZONE 1 : CHIFFRES (Grille 5 colonnes x 2 lignes) */}
-                            <div className="grid grid-cols-5 gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200 shadow-sm md:w-1/2">
-                                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(num => (
+                                let btnClass = "bg-white border-2 border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-md hover:-translate-y-0.5";
+                                let icon = null;
+
+                                if (feedback) {
+                                    if (isCorrect) {
+                                        // C'est le bouton gagnant -> VERT
+                                        btnClass = "bg-emerald-500 border-emerald-600 text-white shadow-md scale-[1.02]";
+                                        icon = <Icon name="check-circle" weight="fill" className="text-white ml-2" />;
+                                    } else if (isSelected) {
+                                        // J'ai cliqué ici mais c'était pas ça (puisque sinon je serais dans le if du dessus) -> ROUGE
+                                        btnClass = "bg-red-500 border-red-600 text-white shadow-md opacity-100";
+                                        icon = <Icon name="x-circle" weight="fill" className="text-white ml-2" />;
+                                    } else {
+                                        btnClass = "opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed";
+                                    }
+                                }
+
+                                return (
                                     <button
-                                        key={num}
-                                        onClick={() => setUserAnswer(prev => prev + num)}
-                                        disabled={feedback !== null}
-                                        className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-slate-200 font-black text-slate-700 text-xl active:border-b-0 active:translate-y-[2px] transition-all hover:bg-slate-50 disabled:opacity-50"
-                                    >
-                                        {num}
-                                    </button>
-                                ))}
-                            </div>
+                                        key={idx}
+                                        onClick={() => {
+                                            if (!feedback) {
+                                                setUserAnswer(optionObj.value); // On garde le texte pour l'affichage éventuel
 
-                            {/* ZONE 2 : ALGÈBRE (Grille auto-adaptative) */}
-                            <div className="flex-1 p-2 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm md:w-1/2">
-                                <div className="grid grid-cols-6 gap-1.5">
-                                    {/* On combine la config JSON et une liste par défaut très complète */}
-                                    {(
-                                        (config?.common_config?.custom_keyboard) ||
-                                        (questionData?.custom_keyboard) ||
-                                        ['x', 'y', 'a', 'b', 't', '²', '+', '-', '(', ')', '^'] // Fallback complet
-                                    ).map(char => (
-                                        <button
-                                            key={char}
-                                            onClick={() => setUserAnswer(prev => prev + char)}
-                                            disabled={feedback !== null}
-                                            className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-indigo-200 font-bold text-indigo-600 text-lg active:border-b-0 active:translate-y-[2px] transition-all hover:bg-indigo-50 disabled:opacity-50"
-                                        >
-                                            {char}
-                                        </button>
-                                    ))}
-
-                                    {/* Touche Retour Arrière (Prend la dernière place) */}
-                                    <button
-                                        onClick={() => setUserAnswer(prev => prev.slice(0, -1))}
+                                                // VALIDATION ULTRA SIMPLE
+                                                if (isCorrect) {
+                                                    if (onSound) onSound('CORRECT');
+                                                    setFeedback('CORRECT');
+                                                    setScore(s => s + 1);
+                                                } else {
+                                                    if (onSound) onSound('WRONG');
+                                                    setFeedback('WRONG');
+                                                }
+                                            }
+                                        }}
                                         disabled={feedback !== null}
-                                        className="h-12 bg-red-100 rounded-lg shadow-sm border-b-2 border-red-200 text-red-500 active:border-b-0 active:translate-y-[2px] transition-all hover:bg-red-200 flex items-center justify-center disabled:opacity-50 col-span-1"
+                                        className={`p-4 rounded-xl font-bold text-base md:text-lg transition-all flex items-center justify-between group text-left ${btnClass}`}
                                     >
-                                        <Icon name="backspace" weight="bold" />
+                                        {/* On affiche la valeur contenue dans l'objet */}
+                                        <div className="w-full flex items-center justify-center md:justify-start">
+                                            <MathText text={optionObj.value} />
+                                        </div>
+                                        <div className="flex-shrink-0 ml-2">
+                                            {icon}
+                                        </div>
                                     </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        // --- MODE CLAVIER VIRTUEL (Pour les autres exos) ---
+                        <>
+                            <div className="mt-4 mb-2 animate-in slide-in-from-bottom-4 fade-in duration-500 w-full max-w-4xl mx-auto">
+                                <div className="flex flex-col md:flex-row gap-3">
+                                    {/* ZONE 1 : CHIFFRES */}
+                                    <div className="grid grid-cols-4 gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200 shadow-sm md:w-1/2">
+                                        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '(', ')'].map(num => (
+                                            <button
+                                                key={num}
+                                                onClick={() => setUserAnswer(prev => prev + num)}
+                                                disabled={feedback !== null}
+                                                className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-slate-200 font-black text-slate-700 text-xl active:border-b-0 active:translate-y-[2px] transition-all hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                {num}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* ZONE 2 : ALGÈBRE */}
+                                    <div className="flex-1 p-2 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm md:w-1/2">
+                                        <div className="grid grid-cols-5 gap-1">
+                                            {((config?.common_config?.custom_keyboard) || (questionData?.custom_keyboard) || ['x', 'y', 'a', 'b', 't', '+', '-', '/', '*', '²', '^']).map(char => (
+                                                <button
+                                                    key={char}
+                                                    onClick={() => setUserAnswer(prev => prev + char)}
+                                                    disabled={feedback !== null}
+                                                    className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-indigo-200 font-bold text-indigo-600 text-lg active:border-b-0 active:translate-y-[2px] transition-all hover:bg-indigo-50 disabled:opacity-50"
+                                                >
+                                                    {char}
+                                                </button>
+                                            ))}
+                                            <button
+                                                onClick={() => setUserAnswer(prev => prev.slice(0, -1))}
+                                                disabled={feedback !== null}
+                                                className="h-12 bg-red-100 rounded-lg shadow-sm border-b-2 border-red-200 text-red-500 active:border-b-0 active:translate-y-[2px] transition-all hover:bg-red-200 flex items-center justify-center disabled:opacity-50 col-span-1"
+                                            >
+                                                <Icon name="backspace" weight="bold" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                        </div>
-                    </div>
-                    <div className="mb-8">
-                        <input
-                            type="text" // 'text' permet de gérer les virgules plus facilement si besoin
-                            inputMode="decimal"
-                            value={userAnswer}
-                            onChange={(e) => setUserAnswer(e.target.value)}
-                            disabled={feedback !== null}
-                            autoFocus
-                            placeholder="Votre réponse..."
-                            className={`w-full p-5 text-3xl font-bold text-center rounded-2xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
-                                feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
-                                    'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 text-slate-700'
-                                }`}
-                            onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
-                        />
-                    </div>
+                            <div className="mb-8">
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    disabled={feedback !== null}
+                                    autoFocus
+                                    placeholder="Votre réponse..."
+                                    className={`w-full p-5 text-3xl font-bold text-center rounded-2xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 text-slate-700'}`}
+                                    onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                />
+                            </div>
+                        </>
+                    )}
 
                     {/* FEEDBACK & CORRECTION */}
                     {feedback && (
@@ -357,8 +657,9 @@ const StandardGame = (props) => {
                         </div>
                     )}
 
-                    {/* BOUTON D'ACTION */}
-                    {!feedback ? (
+                    {/* BOUTON D'ACTION (SUIVANT SEULEMENT) */}
+                    {/* On cache le bouton Valider si on est en QCM car c'est automatique */}
+                    {(!feedback && questionData.responseType !== 'QCM') ? (
                         <button
                             onClick={handleValidate}
                             disabled={!userAnswer}
@@ -367,12 +668,15 @@ const StandardGame = (props) => {
                             <Icon name="check" weight="bold" /> Valider
                         </button>
                     ) : (
-                        <button
-                            onClick={handleNext}
-                            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1 flex items-center justify-center gap-2"
-                        >
-                            {step < 9 ? "Question Suivante" : "Voir mon score"} <Icon name="arrow-right" weight="bold" />
-                        </button>
+                        // Bouton SUIVANT (s'affiche si feedback existe OU si on a fini)
+                        feedback && (
+                            <button
+                                onClick={handleNext}
+                                className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1 flex items-center justify-center gap-2"
+                            >
+                                {step < 9 ? "Question Suivante" : "Voir mon score"} <Icon name="arrow-right" weight="bold" />
+                            </button>
+                        )
                     )}
                 </div>
             </div>

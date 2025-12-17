@@ -13,7 +13,7 @@ export const useMathGenerator = (exerciseId, level = 1) => {
     // On utilise une ref pour stocker la config et éviter des re-renders
     const configRef = useRef(null);
 
-    // 1. CHARGEMENT CONFIG (Identique à avant)
+    // 1. CHARGEMENT CONFIG
     useEffect(() => {
         if (!exerciseId || typeof exerciseId !== 'string') return;
 
@@ -45,23 +45,44 @@ export const useMathGenerator = (exerciseId, level = 1) => {
         fetchConfig();
     }, [exerciseId]);
 
-    // 2. GÉNÉRATEUR MATHÉMATIQUE (AMÉLIORÉ MULTI-PASSES)
+    // 2. GÉNÉRATEUR MATHÉMATIQUE
     const generate = useCallback(() => {
         const config = configRef.current;
         if (!config) return;
 
         try {
             const lvlKey = String(level);
-            const levelData = config.levels ? (config.levels[lvlKey] || config.levels["1"]) : config;
-            if (!levelData) return;
+            // 1. On récupère la base du niveau
+            let levelBase = config.levels ? (config.levels[lvlKey] || config.levels["1"]) : config;
+            if (!levelBase) return;
+
+            // --- GESTION DES VARIATIONS ---
+            let levelData = { ...levelBase };
+
+            if (levelData.variations && Array.isArray(levelData.variations) && levelData.variations.length > 0) {
+                const variant = levelData.variations[Math.floor(Math.random() * levelData.variations.length)];
+                levelData = {
+                    ...levelData,
+                    ...variant,
+                    variables: { ...(levelData.variables || {}), ...(variant.variables || {}) },
+                    calculations: { ...(levelData.calculations || {}), ...(variant.calculations || {}) },
+                    visual_config_override: { ...(levelData.visual_config_override || {}), ...(variant.visual_config_override || {}) }
+                };
+            }
 
             let scope = {};
 
-            // A. VARIABLES (Pas de dépendances, on calcule direct)
+            // A. VARIABLES
             if (levelData.variables) {
                 Object.keys(levelData.variables).forEach(key => {
                     try {
-                        scope[key] = math.evaluate(String(levelData.variables[key]));
+                        let expr = levelData.variables[key];
+                        // Si c'est une chaîne simple sans maths, on garde le texte (évite erreur MathJS)
+                        if (typeof expr === 'string' && !expr.match(/[+\-*/^()\[\]]/) && !expr.includes('random')) {
+                            scope[key] = expr;
+                        } else {
+                            scope[key] = math.evaluate(String(expr), scope);
+                        }
                     } catch (e) {
                         console.error(`Variable Error [${key}]:`, e.message);
                         scope[key] = 0;
@@ -69,98 +90,92 @@ export const useMathGenerator = (exerciseId, level = 1) => {
                 });
             }
 
-            // B. CALCULS (AVEC RÉSOLUTION DE DÉPENDANCES)
+            // B. CALCULS
             if (levelData.calculations) {
                 let toCalculate = Object.keys(levelData.calculations);
                 let pass = 0;
-                let maxPasses = 5; // Sécurité pour éviter boucle infinie
-
-                // On boucle tant qu'il reste des calculs et qu'on n'a pas dépassé la limite
-                while (toCalculate.length > 0 && pass < maxPasses) {
-                    const nextBatch = []; // Ceux qui échoueront iront ici pour la prochaine passe
-
+                while (toCalculate.length > 0 && pass < 5) {
+                    const nextBatch = [];
                     toCalculate.forEach(key => {
                         try {
-                            // On tente de calculer
                             const formula = String(levelData.calculations[key]);
                             scope[key] = math.evaluate(formula, scope);
                         } catch (e) {
-                            // Si ça plante (ex: variable manquante), on garde pour la prochaine passe
                             nextBatch.push(key);
                         }
                     });
-
-                    // Si on n'a rien réussi à résoudre de plus dans cette passe, on arrête pour éviter de boucler
-                    if (nextBatch.length === toCalculate.length) {
-                        console.warn("Dépendances circulaires ou manquantes pour :", nextBatch);
-                        // On force des 0 pour éviter le crash total
-                        nextBatch.forEach(k => scope[k] = 0);
-                        break;
-                    }
-
+                    if (nextBatch.length === toCalculate.length) break; // Blocage
                     toCalculate = nextBatch;
                     pass++;
                 }
             }
 
-            // C. REMPLACEMENT TEXTE & EXPLICATION
-            let qText = levelData.question_template || config.question_template || "Calculer :";
-            let expText = levelData.explanation_template || config.explanation_template || "";
-
-            // On trie les clés par longueur décroissante pour éviter de remplacer "{c1}" par "{12}" et casser "{c10}"
-            const keys = Object.keys(scope).sort((a, b) => b.length - a.length);
-
-            keys.forEach(key => {
-                const regex = new RegExp(`{${key}}`, 'g');
-                // On arrondit l'affichage si c'est un nombre à virgule trop long
-                let val = scope[key];
-                if (typeof val === 'number' && !Number.isInteger(val)) {
-                    val = Math.round(val * 100) / 100; // Arrondi affichage 2 décimales
-                }
-
-                qText = qText.replace(regex, val);
-                if (expText) expText = expText.replace(regex, val);
-            });
-
-            // D. RÉPONSE (VERSION CORRIGÉE)
-            let correct = levelData.correct_answer || config.correct_answer;
-
-            // Si c'est du texte, on remplace toutes les variables {x}, {sum}, etc. par leur valeur
-            if (typeof correct === 'string') {
-                // 1. On récupère toutes les variables disponibles (x, sum, prod, v...)
-                // 2. On trie par longueur décroissante (IMPORTANT : pour ne pas remplacer {xy} par {x}y par erreur)
+            // FONCTION DE REMPLACEMENT (Reusability)
+            const replaceVars = (text) => {
+                if (!text) return "";
                 const keys = Object.keys(scope).sort((a, b) => b.length - a.length);
-
-                // 3. On remplace chaque {variable} par sa valeur
+                let res = String(text);
                 keys.forEach(key => {
-                    // Crée une "recherche globale" pour remplacer toutes les occurrences
                     const regex = new RegExp(`{${key}}`, 'g');
-                    correct = correct.replace(regex, scope[key]);
+                    let val = scope[key];
+                    if (typeof val === 'number' && !Number.isInteger(val)) {
+                        val = Math.round(val * 1000) / 1000;
+                    }
+                    res = res.replace(regex, val);
                 });
+                return res;
+            };
+
+            // C. TEXTES
+            let qText = replaceVars(levelData.question_template || config.question_template || "Calculer :");
+            let expText = replaceVars(levelData.explanation_template || config.explanation_template || "");
+
+            // D. RÉPONSE CORRECTE
+            let correct = levelData.correct_answer || config.correct_answer;
+            if (typeof correct === 'string') {
+                correct = replaceVars(correct);
             }
 
-            // E. CONFIG VISUELLE
+            // --- E. GESTION DES OPTIONS QCM (METHODE ROBUSTE) ---
+            let qcmOptions = [];
+            if (levelData.options && Array.isArray(levelData.options)) {
+
+                // 1. On prépare une fonction de nettoyage pour la comparaison interne
+                // (On retire espaces et $ pour être sûr de trouver la bonne réponse même si mal formatée dans le JSON)
+                const normalize = (str) => String(str).replace(/[\s$]/g, '').trim();
+                const cleanCorrect = normalize(correct);
+
+                // 2. On construit les objets options
+                qcmOptions = levelData.options.map(opt => {
+                    const finalValue = replaceVars(opt); // Le texte affiché (ex: "$x^2 - 16$")
+                    const cleanValue = normalize(finalValue);
+
+                    return {
+                        value: finalValue,      // Ce qu'on affiche
+                        isCorrect: cleanValue === cleanCorrect // LE DRAME EST RÉSOLU ICI
+                    };
+                });
+
+                // 3. On mélange les OBJETS (Fisher-Yates)
+                // Comme le flag 'isCorrect' est attaché à l'objet, on ne perd pas l'info !
+                for (let i = qcmOptions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [qcmOptions[i], qcmOptions[j]] = [qcmOptions[j], qcmOptions[i]];
+                }
+            }
+
+            // F. CONFIG VISUELLE
             let visualData = null;
             const rawVisual = {
                 ...(config.common_config?.visual_config_template || {}),
                 ...(levelData.visual_config_override || {})
             };
-
             if (Object.keys(rawVisual).length > 0) {
-                const strConfig = JSON.stringify(rawVisual);
-                // Remplacement intelligent
-                let injectedStr = strConfig;
-                keys.forEach(key => {
-                    const regex = new RegExp(`{${key}}`, 'g');
-                    injectedStr = injectedStr.replace(regex, scope[key]);
-                });
-
-                try {
-                    visualData = JSON.parse(injectedStr);
-                } catch (e) {
-                    console.error("Erreur JSON Visuel", e);
-                }
+                try { visualData = JSON.parse(replaceVars(JSON.stringify(rawVisual))); } catch (e) { }
             }
+
+            const customKeyboard = levelData.custom_keyboard || config.common_config?.custom_keyboard;
+            const responseType = levelData.response_type || config.response_type || "NUMERIC";
 
             setQuestionData({
                 question: qText,
@@ -168,11 +183,16 @@ export const useMathGenerator = (exerciseId, level = 1) => {
                 correct: correct,
                 scope: scope,
                 visualConfig: visualData,
-                visualEngine: config.visual_engine
+                visualEngine: config.visual_engine || "NONE",
+                xp_reward: levelData.xp_reward || 5,
+                custom_keyboard: customKeyboard,
+                responseType: responseType,
+                options: qcmOptions // <--- ON ENVOIE ENFIN LES OPTIONS !
             });
 
         } catch (e) {
             console.error("Erreur génération:", e);
+            setError(e.message);
         }
     }, [level]);
 

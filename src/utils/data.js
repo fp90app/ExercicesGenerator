@@ -30,13 +30,12 @@ export const AUTOMATISMES_DATA = [
             { id: "auto_13_dev_fact", title: "Développements k(a+b)" },
             { id: "auto_facto_simple", title: "Factorisations k(a+b)" },
             { id: "auto_dvlpt_double", title: "Développements doubles (a+b)(c+d)" },
-            { id: "auto_facto_complexe", title: "Factorisations complexes" },
+
 
             // --- Identités Remarquables ---
             { id: "auto_ir_3_dev", title: "IR (a+b)(a-b) : Développement" },
             { id: "auto_ir_3_fact", title: "IR a²-b² : Factorisation" },
-            { id: "auto_ir_1_2_dev", title: "IR Carrés (a±b)² : Développement" },
-            { id: "auto_ir_1_2_fact", title: "IR Carrés a²±2ab+b² : Factorisation" },
+
 
             // --- Équations ---
             { id: "auto_14_equations", title: "Équations simples" },
@@ -89,6 +88,16 @@ export const AUTOMATISMES_DATA = [
         exos: [
             { id: "auto_39_algo", title: "Algorithmique" },
             { id: "auto_40_tableur", title: "Tableur" }
+        ]
+    },
+    {
+        title: "Pour aller plus loin : défis & lycée",
+        color: "slate", // Une couleur sombre pour le côté "Expert"
+        exos: [
+            // J'AI DÉPLACÉ L'EXERCICE ICI
+            { id: "auto_facto_complexe", title: "Factorisations complexes" },
+            { id: "auto_ir_1_2_dev", title: "IR Carrés (a±b)² : Développement" },
+            { id: "auto_ir_1_2_fact", title: "IR Carrés a²±2ab+b² : Factorisation" },
         ]
     }
 ];

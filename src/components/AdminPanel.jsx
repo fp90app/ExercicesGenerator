@@ -11,82 +11,128 @@ import { ref, uploadBytes, getDownloadURL, listAll } from "firebase/storage";
 import { Icon } from './UI';
 import { toast } from 'react-hot-toast';
 import MathText from './MathText';
+import Editor from "@monaco-editor/react";
+import { parseAndValidateExercise } from '../utils/validators';
 
 // NOTE : On retire l'import de AUTOMATISMES_DATA car on passe en mode Dynamique !
 import { AUTOMATISMES_DATA } from '../utils/data'; // Gardé uniquement pour la migration de secours
 
 // Ajoutez mathjs pour calculer l'aperçu en direct
 import * as math from 'mathjs';
+import { processLevelData } from '../utils/mathGenerators';
 
 // Importez vos moteurs visuels pour l'aperçu
 import PythagoreSystem from './PythagoreSystem';
+import NumberLineSystem from './NumberLineSystem';
+import CartesianSystem from './CartesianSystem';
+
 // (Vous pourrez ajouter ThalesSystem ici plus tard)
 
 const ENGINE_REGISTRY = {
     'ENGINE_PYTHAGORE': PythagoreSystem,
+    'ENGINE_NUMBER_LINE': NumberLineSystem,
+    'ENGINE_CARTESIAN': CartesianSystem,
     // Quand tu auras Thalès, décommente juste la ligne dessous :
     // 'ENGINE_THALES': ThalesSystem,
 };
 
 // --- UTILITAIRE : GÉNÉRATEUR D'APERÇU (Simule useMathGenerator) ---
+// Remplace ta fonction generatePreviewData actuelle par celle-ci
+
 const generatePreviewData = (jsonConfig, level = 1) => {
+    let config;
+    try { config = JSON.parse(jsonConfig); } catch (e) { return { error: "JSON Invalide" }; }
+
     try {
-        const config = JSON.parse(jsonConfig);
         const lvlKey = String(level);
-        const levelData = config.levels ? (config.levels[lvlKey] || config.levels["1"]) : config;
+        // On récupère la config de base du niveau
+        let levelBase = config.levels ? (config.levels[lvlKey] || config.levels["1"]) : config;
+        if (!levelBase) throw new Error(`Niveau ${level} non trouvé.`);
 
-        if (!levelData) throw new Error(`Niveau ${level} non trouvé.`);
+        // --- CHANGEMENT DRASTIQUE : GESTION DES VARIATIONS ---
+        // Si le niveau contient une liste "variations", on en choisit une et on l'écrase sur la base
+        let activeData = { ...levelBase };
 
+        if (activeData.variations && Array.isArray(activeData.variations) && activeData.variations.length > 0) {
+            // 1. Choix aléatoire d'une variation
+            const variant = activeData.variations[Math.floor(Math.random() * activeData.variations.length)];
+
+            // 2. Fusion intelligente : La variation GAGNE sur la base
+            activeData = {
+                ...activeData,            // On garde les defaults (ex: xp_reward)
+                ...variant,               // On écrase avec la variante (ex: question_template)
+                // On fusionne les variables et calculations au lieu de les remplacer totalement
+                variables: { ...(activeData.variables || {}), ...(variant.variables || {}) },
+                calculations: { ...(activeData.calculations || {}), ...(variant.calculations || {}) },
+                visual_config_override: { ...(activeData.visual_config_override || {}), ...(variant.visual_config_override || {}) }
+            };
+        }
+
+        // --- SUITE CLASSIQUE (MathJS) ---
         let scope = {};
-        // 1. Variables
-        if (levelData.variables) {
-            Object.keys(levelData.variables).forEach(key => {
-                try { scope[key] = math.evaluate(String(levelData.variables[key]), scope); }
-                catch (e) { scope[key] = "ERR"; }
+        let toEvaluate = { ...activeData.variables, ...activeData.calculations };
+        let remainingKeys = Object.keys(toEvaluate);
+
+        // Boucle de résolution (5 passes max)
+        for (let pass = 0; pass < 5; pass++) {
+            let nextRemaining = [];
+            remainingKeys.forEach(key => {
+                try {
+                    // On évalue seulement si c'est nécessaire
+                    let expr = toEvaluate[key];
+                    // Si c'est une chaîne simple sans maths, on la garde telle quelle (évite les bugs de texte)
+                    if (typeof expr === 'string' && !expr.match(/[+\-*/^()\[\]]/) && !expr.includes('random')) {
+                        scope[key] = expr;
+                    } else {
+                        scope[key] = math.evaluate(String(expr), scope);
+                    }
+                } catch (e) {
+                    nextRemaining.push(key);
+                }
             });
+            remainingKeys = nextRemaining;
+            if (remainingKeys.length === 0) break;
         }
-        // 2. Calculs (Multi-passes pour gérer les dépendances)
-        if (levelData.calculations) {
-            let toCalculate = Object.keys(levelData.calculations);
-            let pass = 0;
-            while (toCalculate.length > 0 && pass < 5) {
-                const nextBatch = [];
-                toCalculate.forEach(key => {
-                    try { scope[key] = math.evaluate(String(levelData.calculations[key]), scope); }
-                    catch (e) { nextBatch.push(key); }
-                });
-                if (nextBatch.length === toCalculate.length) { nextBatch.forEach(k => scope[k] = "ERR"); break; }
-                toCalculate = nextBatch; pass++;
-            }
-        }
-        // 3. Textes
-        let qText = levelData.question_template || "Question ?";
-        let expText = levelData.explanation_template || "";
-        const keys = Object.keys(scope).sort((a, b) => b.length - a.length); // Tri important !
+        remainingKeys.forEach(k => scope[k] = "ERR");
 
-        keys.forEach(key => {
-            const regex = new RegExp(`{${key}}`, 'g');
-            let val = scope[key];
-            if (typeof val === 'number' && !Number.isInteger(val)) val = Math.round(val * 100) / 100;
-            qText = qText.replace(regex, val);
-            if (expText) expText = expText.replace(regex, val);
-        });
-        // 4. Visuel
+        // Remplacement Variables dans les Textes
+        const replaceVars = (text) => {
+            if (typeof text !== 'string') return text;
+            return text.replace(/\{(\w+)\}/g, (_, key) => {
+                const val = scope[key];
+                if (val === undefined) return `{${key}}`;
+                return (typeof val === 'number' && !Number.isInteger(val)) ? Math.round(val * 100) / 100 : val;
+            });
+        };
+
+        let qText = replaceVars(activeData.question_template || "Question ?");
+        let expText = replaceVars(activeData.explanation_template || "");
+        let correct = activeData.correct_answer;
+
+        if (correct && typeof correct === 'string') {
+            correct = replaceVars(correct);
+            try { if (isNaN(Number(correct))) correct = math.evaluate(correct, scope); } catch (e) { }
+        }
+
+        // Config Visuelle
         let visualData = null;
-        const rawVisual = { ...(config.common_config?.visual_config_template || {}), ...(levelData.visual_config_override || {}) };
+        const rawVisual = { ...(config.common_config?.visual_config_template || {}), ...(activeData.visual_config_override || {}) };
         if (Object.keys(rawVisual).length > 0) {
-            const strConfig = JSON.stringify(rawVisual);
-            let injectedStr = strConfig;
-            keys.forEach(key => { injectedStr = injectedStr.replace(new RegExp(`{${key}}`, 'g'), scope[key]); });
-            visualData = JSON.parse(injectedStr);
+            visualData = JSON.parse(replaceVars(JSON.stringify(rawVisual)));
         }
-        // Réponse corrigée
-        let correct = levelData.correct_answer;
-        if (typeof correct === 'string' && correct.startsWith('{')) correct = scope[correct.replace(/[{}]/g, '')];
 
-        return { question: qText, explanation: expText, correct, visualConfig: visualData, visualEngine: config.visual_engine, scope };
+        return {
+            question: qText,
+            explanation: expText,
+            correct,
+            visualConfig: visualData,
+            visualEngine: config.visual_engine,
+            responseType: activeData.response_type || "NUMERIC",
+            scope
+        };
     } catch (e) { return { error: e.message }; }
 };
+
 
 const AdminPanel = ({ user, onBack }) => {
 
@@ -189,14 +235,31 @@ const AdminPanel = ({ user, onBack }) => {
         } catch (e) { toast.error(e.message); }
     };
 
-    const saveJsonExercise = async () => {
+    const handleSave = async () => {
+        // 1. Validation stricte
+        const validation = parseAndValidateExercise(jsonInput);
+
+        if (!validation.success) {
+            // Affiche l'erreur précise à l'utilisateur
+            toast.error("Erreur de validation :\n" + validation.error, {
+                duration: 5000,
+                style: { border: '2px solid red' }
+            });
+            return;
+        }
+
+        const data = validation.data;
+
         try {
-            const data = JSON.parse(jsonInput);
-            if (!data.id) return toast.error("ID manquant !");
+            // 2. Sauvegarde des données NETTOYÉES
             await setDoc(doc(db, "structure_automatismes", data.id), data);
-            toast.success("Sauvegardé !");
-            // Appelez ici votre fonction de rafraichissement si elle existe, ex: fetchProgram();
-        } catch (e) { toast.error("Erreur JSON : " + e.message); }
+            toast.success(`Exercice "${data.id}" sauvegardé et validé !`);
+
+            // Rafraîchir
+            fetchProgram();
+        } catch (e) {
+            toast.error("Erreur Firestore : " + e.message);
+        }
     };
 
     const forcePreview = () => {
@@ -1081,13 +1144,42 @@ const AdminPanel = ({ user, onBack }) => {
                                 {/* COLONNE GAUCHE : CODE */}
                                 <div className="flex flex-col">
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Configuration JSON</label>
-                                    <textarea
-                                        className="flex-1 w-full p-4 font-mono text-xs md:text-sm bg-slate-900 text-green-400 rounded-xl border-2 border-slate-700 focus:border-indigo-500 outline-none leading-relaxed"
-                                        value={jsonInput}
-                                        onChange={e => setJsonInput(e.target.value)}
-                                        spellCheck="false"
-                                        placeholder='Collez votre JSON ici...'
-                                    ></textarea>
+                                    <div className="h-[600px] border-2 border-slate-700 rounded-xl overflow-hidden">
+                                        <Editor
+                                            height="100%"
+                                            defaultLanguage="json"
+                                            value={jsonInput}
+                                            onChange={(value) => setJsonInput(value)}
+                                            theme="vs-dark"
+                                            options={{
+                                                minimap: { enabled: false },
+                                                fontSize: 14,
+                                                formatOnPaste: true,
+                                                formatOnType: true
+                                            }}
+                                        />
+                                        {/* ZONE DE FEEDBACK DE VALIDATION */}
+                                        <div className="mt-2 text-xs">
+                                            {(() => {
+                                                // On valide à la volée pour l'affichage (sans parser MathJS, juste structure)
+                                                const check = parseAndValidateExercise(jsonInput);
+                                                if (check.success) {
+                                                    return (
+                                                        <div className="flex items-center gap-2 text-emerald-500 font-bold bg-emerald-50 p-2 rounded border border-emerald-200">
+                                                            <Icon name="check-circle" /> Structure Valide • ID: {check.data.id}
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div className="flex items-start gap-2 text-red-500 font-mono bg-red-50 p-2 rounded border border-red-200 whitespace-pre-wrap">
+                                                            <Icon name="warning" className="mt-1 shrink-0" />
+                                                            <span>{check.error}</span>
+                                                        </div>
+                                                    );
+                                                }
+                                            })()}
+                                        </div>
+                                    </div>
                                     <div className="mt-2 text-xs text-slate-400 flex justify-between">
                                         <span>Syntaxe stricte : guillemets doubles " obligatoires pour les clés.</span>
                                         <button onClick={() => setJsonInput(JSON.stringify(JSON.parse(jsonInput), null, 2))} className="text-indigo-600 hover:underline">Formater</button>
@@ -1142,6 +1234,17 @@ const AdminPanel = ({ user, onBack }) => {
                                                 <div className="text-sm font-bold text-slate-400 uppercase mb-1">Question (Niveau {previewLevel})</div>
                                                 <div className="text-xl font-black text-slate-800 mb-4">
                                                     <MathText text={previewData.question} />
+                                                </div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Mode de réponse :</span>
+                                                    <span className={`text-xs font-bold px-2 py-1 rounded border ${previewData.responseType === 'GRAPH_POINT' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                                        previewData.responseType === 'QCM' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                            'bg-blue-100 text-blue-700 border-blue-200'
+                                                        }`}>
+                                                        {previewData.responseType === 'GRAPH_POINT' && <Icon name="hand-pointing" className="inline mr-1" />}
+                                                        {previewData.responseType === 'NUMERIC' && <Icon name="numpad" className="inline mr-1" />}
+                                                        {previewData.responseType}
+                                                    </span>
                                                 </div>
 
                                                 <div className="text-sm font-bold text-slate-400 uppercase mb-1">Réponse Attendue</div>

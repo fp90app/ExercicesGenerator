@@ -67,6 +67,8 @@ const NewsBanner = () => {
         amber: "bg-amber-100 text-amber-800 border-amber-200",
         red: "bg-red-100 text-red-800 border-red-200",
         purple: "bg-purple-100 text-purple-800 border-purple-200",
+        rose: { bg: "bg-rose-50", border: "border-rose-100", textDark: "text-rose-800", textLight: "text-rose-600", bar: "bg-rose-500" },
+        slate: { bg: "bg-slate-100", border: "border-slate-200", textDark: "text-slate-800", textLight: "text-slate-600", bar: "bg-slate-600" },
     };
 
     const style = colorClasses[news.newsColor] || colorClasses.blue;
@@ -466,6 +468,13 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
         indigo: { container: "border-b-indigo-100 hover:border-indigo-500", iconBox: "bg-indigo-100 text-indigo-600", footer: "text-indigo-600" },
         emerald: { container: "border-b-emerald-100 hover:border-emerald-500", iconBox: "bg-emerald-100 text-emerald-600", footer: "text-emerald-600" },
         red: { container: "border-b-red-100 hover:border-red-500", iconBox: "bg-red-100 text-red-600", footer: "text-red-600" },
+        // --- AJOUTS NÉCESSAIRES ---
+        purple: { container: "border-b-purple-100 hover:border-purple-500", iconBox: "bg-purple-100 text-purple-600", footer: "text-purple-600" },
+        cyan: { container: "border-b-cyan-100 hover:border-cyan-500", iconBox: "bg-cyan-100 text-cyan-600", footer: "text-cyan-600" },
+        rose: { container: "border-b-rose-100 hover:border-rose-500", iconBox: "bg-rose-100 text-rose-600", footer: "text-rose-600" },
+
+        // TA NOUVELLE SECTION (Expert)
+        slate: { container: "border-b-slate-300 hover:border-slate-800", iconBox: "bg-slate-800 text-white", footer: "text-slate-800" },
     };
 
     const MenuCard = ({ icon, title, desc, color, onClick, footer }) => {
