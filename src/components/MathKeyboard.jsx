@@ -41,31 +41,32 @@ const MathKeyboard = ({ onKeyPress, onDelete, onClose }) => {
 
     const keyboardContent = (
         // CONTENEUR PRINCIPAL
-        // Mobile : p-2
-        // PC (md) : p-1 et max-w-2xl (plus étroit)
-        <div className="fixed bottom-0 left-0 w-full md:w-auto md:left-1/2 md:-translate-x-1/2 md:bottom-2 md:rounded-xl bg-slate-900/95 backdrop-blur-md p-2 md:p-1.5 z-[9999] border-t md:border border-slate-700 shadow-2xl animate-in slide-in-from-bottom-10 touch-none select-none">
+        // Mobile : p-1 (très peu de padding)
+        // PC (md) : p-1.5
+        <div className="fixed bottom-0 left-0 w-full md:w-auto md:left-1/2 md:-translate-x-1/2 md:bottom-2 md:rounded-xl bg-slate-900/95 backdrop-blur-md p-1 md:p-1.5 z-[9999] border-t md:border border-slate-700 shadow-2xl animate-in slide-in-from-bottom-10 touch-none select-none">
 
-            {/* Barre de contrôle */}
+            {/* Barre de contrôle (Minuscule sur mobile) */}
             <div className="flex justify-between items-center mb-1 px-1">
+                {/* On cache le texte "Clavier Math" sur mobile pour gagner de la place visuelle */}
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <Icon name="keyboard" size={12} /> <span className="hidden md:inline">Clavier Math</span>
+                    <Icon name="keyboard" size={12} /> <span className="text-[9px] md:text-[10px]">Maths</span>
                 </span>
                 <button
                     onClick={onClose}
-                    className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center"
+                    className="bg-slate-800 text-slate-400 px-4 py-0 md:px-2 md:py-0.5 rounded hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center h-6 md:h-auto"
                     title="Fermer"
                 >
                     <Icon name="caret-down" weight="bold" size={14} />
                 </button>
             </div>
 
-            {/* GRILLE */}
-            <div className="grid grid-cols-6 gap-1 md:gap-1">
+            {/* GRILLE COMPACTE */}
+            <div className="grid grid-cols-6 gap-1">
                 {keys.map((k, i) => {
-                    // STYLES DES TOUCHES
-                    // Mobile : h-12 text-xl (Gros)
-                    // PC (md) : h-8 text-sm (Compact type Excel)
-                    let style = "h-12 md:h-8 md:w-12 rounded md:rounded-md font-bold text-xl md:text-sm active:scale-95 transition-all flex items-center justify-center shadow-sm border-b-2 border-black/20 ";
+                    // STYLES OPTIMISÉS MOBILE
+                    // Mobile (base) : h-10 (40px) -> Suffisant pour le doigt, gagne 32px au total sur 4 lignes
+                    // PC (md) : h-8 (32px) -> Compact souris
+                    let style = "h-10 md:h-8 md:w-12 rounded md:rounded-md font-bold text-lg md:text-sm active:scale-95 transition-all flex items-center justify-center shadow-sm border-b-2 border-black/20 ";
 
                     if (k.val === 'DEL') style += "bg-red-500/20 text-red-400 border-red-900/30 hover:bg-red-500 hover:text-white";
                     else if (k.type === 'num') style += "bg-slate-700 text-white hover:bg-slate-600 border-slate-900";
@@ -77,18 +78,21 @@ const MathKeyboard = ({ onKeyPress, onDelete, onClose }) => {
                     return (
                         <button
                             key={i}
-                            onMouseDown={(e) => e.preventDefault()} // Empêche la perte de focus
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 k.val === 'DEL' ? onDelete() : onKeyPress(k.val);
                             }}
                             className={style}
                         >
-                            {k.val === 'DEL' ? <Icon name="backspace" weight="bold" size={16} /> : k.label}
+                            {k.val === 'DEL' ? <Icon name="backspace" weight="bold" size={18} /> : k.label}
                         </button>
                     );
                 })}
             </div>
+
+            {/* Petit espace safe en bas pour les iPhone (barre d'accueil) */}
+            <div className="h-1 md:h-0"></div>
         </div>
     );
 

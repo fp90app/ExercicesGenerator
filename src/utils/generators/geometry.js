@@ -1,4 +1,4 @@
-import { round, rand } from './utils'; // Ajuste selon les besoins
+import { round, rand, pick } from './utils'; // Ajuste selon les besoins
 
 // PYTHAGORE //
 
@@ -358,5 +358,262 @@ export const generateThalesData = (level = 1) => {
         targetKey,
         correct: correctAnswer,
         options: Array.from(options).sort((a, b) => a - b).slice(0, 4),
+    };
+};
+
+
+const rotatePoints = (points, angleDeg) => {
+    const rad = angleDeg * (Math.PI / 180);
+    return points.map(p => ({
+        x: p.x * Math.cos(rad) - p.y * Math.sin(rad),
+        y: p.x * Math.sin(rad) + p.y * Math.cos(rad)
+    }));
+};
+
+// Fonction pour calculer le centre (Moyenne des diagonales)
+const getCenter = (p1, p3) => ({
+    x: (p1.x + p3.x) / 2,
+    y: (p1.y + p3.y) / 2
+});
+
+// Formes de base (centrées en 0,0)
+const SHAPES = {
+    SQUARE: [{ x: -50, y: 50 }, { x: 50, y: 50 }, { x: 50, y: -50 }, { x: -50, y: -50 }],
+    RECTANGLE: [{ x: -70, y: 40 }, { x: 70, y: 40 }, { x: 70, y: -40 }, { x: -70, y: -40 }],
+    RHOMBUS: [{ x: 0, y: 80 }, { x: 50, y: 0 }, { x: 0, y: -80 }, { x: -50, y: 0 }],
+    PARALLELOGRAM: [{ x: -60, y: 50 }, { x: 40, y: 50 }, { x: 60, y: -50 }, { x: -40, y: -50 }],
+    TRIANGLE_ISO: [{ x: 0, y: 60 }, { x: -40, y: -40 }, { x: 40, y: -40 }],
+    TRIANGLE_EQU: [{ x: 0, y: 50 }, { x: -43, y: -25 }, { x: 43, y: -25 }]
+};
+
+export const generateGeometryQuestion = (config) => {
+    const level = config.level || 1;
+    const rotation = rand(0, 360);
+
+    let qText, options, correct, codings = [], points = [], responseType = "QCM";
+    let explanation = "";
+    let extraPoints = []; // Pour ajouter le point O sans casser le tracé du polygone
+
+    // ========================================================================
+    // NIVEAU 1 : IDENTIFICATION (Vocabulaire & Nature)
+    // ========================================================================
+    if (level === 1) {
+        const type = pick(['carré', 'rectangle', 'losange', 'triangle_iso', 'triangle_equ']);
+
+        if (type === 'carré') {
+            points = rotatePoints(SHAPES.SQUARE, rotation);
+            qText = "Quelle est la nature de ce quadrilatère ?";
+            correct = "Un carré";
+            options = ["Un losange", "Un rectangle", "Un carré", "Un trapèze"];
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] },
+                { type: 'tick', indices: [2, 3] }, { type: 'tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [0, 1, 2] }
+            ];
+            explanation = "Il possède 4 côtés de même longueur et un angle droit.";
+        }
+        else if (type === 'rectangle') {
+            points = rotatePoints(SHAPES.RECTANGLE, rotation);
+            qText = "Quelle est la nature de ce quadrilatère ?";
+            correct = "Un rectangle";
+            options = ["Un carré", "Un losange", "Un rectangle", "Un parallélogramme"];
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [2, 3] },
+                { type: 'double_tick', indices: [1, 2] }, { type: 'double_tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [3, 0, 1] }
+            ];
+            explanation = "C'est un quadrilatère avec 3 angles droits (ou côtés opposés égaux et un angle droit).";
+        }
+        else if (type === 'losange') {
+            points = rotatePoints(SHAPES.RHOMBUS, rotation);
+            qText = "Quelle est la nature de ce quadrilatère ?";
+            correct = "Un losange";
+            options = ["Un carré", "Un losange", "Un rectangle", "Un cerf-volant"];
+            codings = [
+                { type: 'double_tick', indices: [0, 1] }, { type: 'double_tick', indices: [1, 2] },
+                { type: 'double_tick', indices: [2, 3] }, { type: 'double_tick', indices: [3, 0] }
+            ];
+            explanation = "Il a ses 4 côtés de même longueur, mais pas d'angle droit marqué.";
+        }
+        else if (type === 'triangle_iso') {
+            points = rotatePoints(SHAPES.TRIANGLE_ISO, rotation);
+            qText = "Quelle est la nature de ce triangle ?";
+            correct = "Isocèle";
+            options = ["Isocèle", "Équilatéral", "Rectangle", "Quelconque"];
+            codings = [{ type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [0, 2] }];
+            explanation = "Il a deux côtés de même longueur.";
+        }
+        else { // Equilatéral
+            points = rotatePoints(SHAPES.TRIANGLE_EQU, rotation);
+            qText = "Quelle est la nature de ce triangle ?";
+            correct = "Équilatéral";
+            options = ["Isocèle", "Équilatéral", "Rectangle", "Rectangle isocèle"];
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] }, { type: 'tick', indices: [2, 0] }
+            ];
+            explanation = "Il a ses 3 côtés de même longueur.";
+        }
+    }
+
+    // ========================================================================
+    // NIVEAU 2 : CALCULS (Périmètres, Aires, Diagonales)
+    // ========================================================================
+    else if (level === 2) {
+        responseType = "NUMERIC";
+        // On introduit des demis (ex: 5.5)
+        const hasHalf = Math.random() > 0.5;
+        const baseVal = rand(4, 12);
+        const val1 = hasHalf ? baseVal + 0.5 : baseVal;
+
+        const mode = pick(['perim_carre', 'aire_carre', 'aire_rect', 'diag_rect']);
+
+        if (mode === 'perim_carre') {
+            points = rotatePoints(SHAPES.SQUARE, rotation);
+            qText = `Ceci est un carré de côté ${val1} cm. Quel est son périmètre (en cm) ?`;
+            correct = String(val1 * 4).replace('.', ','); // Format français
+            // Pas d'options en mode numérique
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] },
+                { type: 'tick', indices: [2, 3] }, { type: 'tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [0, 1, 2] }
+            ];
+            explanation = `P = 4 × côté = 4 × ${val1} = ${val1 * 4} cm.`;
+        }
+        else if (mode === 'aire_carre') {
+            points = rotatePoints(SHAPES.SQUARE, rotation);
+            qText = `Ceci est un carré de côté ${val1} cm. Quelle est son AIRE (en cm²) ?`;
+            correct = String(val1 * val1).replace('.', ',');
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] },
+                { type: 'tick', indices: [2, 3] }, { type: 'tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [0, 1, 2] }
+            ];
+            explanation = `Aire = côté × côté = ${val1} × ${val1} = ${val1 * val1} cm².`;
+        }
+        else if (mode === 'aire_rect') {
+            points = rotatePoints(SHAPES.RECTANGLE, rotation);
+            const val2 = hasHalf ? rand(2, baseVal - 1) : rand(2, baseVal - 1) + 0.5; // L'autre dimension
+            qText = `C'est un rectangle. Longueur = ${Math.max(val1, val2)} cm, Largeur = ${Math.min(val1, val2)} cm. Calculer l'AIRE (cm²).`;
+            correct = String(val1 * val2).replace('.', ',');
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [2, 3] },
+                { type: 'double_tick', indices: [1, 2] }, { type: 'double_tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [0, 1, 2] }
+            ];
+            explanation = `Aire = L × l = ${val1} × ${val2} = ${val1 * val2} cm².`;
+        }
+        else { // Diagonales rectangle avec Point O
+            points = rotatePoints(SHAPES.RECTANGLE, rotation);
+            // Ajout du point O (Centre)
+            const center = getCenter(points[0], points[2]);
+            extraPoints = [{ x: center.x, y: center.y, label: 'O' }];
+
+            qText = `Rectangle de centre O. Si OA = ${val1} cm, combien mesure la diagonale entière AC ?`;
+            correct = String(val1 * 2).replace('.', ',');
+            codings = [
+                { type: 'right_angle', indices: [0, 1, 2] },
+                { type: 'right_angle', indices: [1, 2, 3] },
+                { type: 'right_angle', indices: [2, 3, 0] }
+            ];
+            explanation = `Les diagonales d'un rectangle ont la même longueur et se coupent en leur milieu. AC = 2 × OA = ${val1 * 2} cm.`;
+        }
+    }
+
+    // ========================================================================
+    // NIVEAU 3 : PROPRIÉTÉS & DÉDUCTIONS (QCM avec pièges)
+    // ========================================================================
+    else {
+        responseType = "QCM";
+        // On varie les scénarios pour éviter la répétition "Est-ce un carré ?"
+        const scenario = pick(['false_square', 'prop_diag_losange', 'prop_diag_rect', 'reverse_perim', 'def_parallelo']);
+
+        if (scenario === 'false_square') {
+            // Le piège classique : Visuellement un carré, codé comme losange
+            points = rotatePoints(SHAPES.SQUARE, rotation);
+            qText = "D'après les codages SEULS, peut-on affirmer que c'est un carré ?";
+            correct = "Non";
+            options = ["Oui", "Non", "On ne peut pas savoir", "C'est un rectangle"];
+            // Piège : Pas d'angle droit !
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] },
+                { type: 'tick', indices: [2, 3] }, { type: 'tick', indices: [3, 0] }
+            ];
+            explanation = "Les codages indiquent 4 côtés de même longueur (Losange). Sans angle droit codé, ce n'est pas forcément un carré.";
+        }
+        else if (scenario === 'prop_diag_losange') {
+            // Propriété des diagonales du losange
+            points = rotatePoints(SHAPES.RHOMBUS, rotation);
+            const center = getCenter(points[0], points[2]);
+            extraPoints = [{ x: center.x, y: center.y, label: 'O' }];
+
+            qText = "ABCD est un losange de centre O. Quelle propriété est VRAIE ?";
+            correct = "(AC) et (BD) sont perpendiculaires";
+            options = [
+                "(AC) et (BD) sont perpendiculaires",
+                "[AC] et [BD] ont la même longueur",
+                "OA = AB",
+                "Les diagonales ne se coupent pas"
+            ];
+            codings = [
+                { type: 'double_tick', indices: [0, 1] }, { type: 'double_tick', indices: [1, 2] },
+                { type: 'double_tick', indices: [2, 3] }, { type: 'double_tick', indices: [3, 0] }
+            ];
+            explanation = "Dans un losange, les diagonales sont perpendiculaires et se coupent en leur milieu.";
+        }
+        else if (scenario === 'prop_diag_rect') {
+            // Propriété des diagonales du rectangle
+            points = rotatePoints(SHAPES.RECTANGLE, rotation);
+            qText = "Quelle affirmation sur les diagonales de cette figure est vraie ?";
+            correct = "Elles ont la même longueur";
+            options = [
+                "Elles sont perpendiculaires",
+                "Elles ont la même longueur",
+                "Elles sont parallèles",
+                "Elles sont égales aux côtés"
+            ];
+            codings = [
+                { type: 'right_angle', indices: [0, 1, 2] },
+                { type: 'right_angle', indices: [1, 2, 3] },
+                { type: 'right_angle', indices: [2, 3, 0] }
+            ];
+            explanation = "C'est un rectangle (3 angles droits). Ses diagonales ont la même longueur.";
+        }
+        else if (scenario === 'reverse_perim') {
+            // Logique inverse : Trouver le côté à partir du périmètre
+            points = rotatePoints(SHAPES.SQUARE, rotation);
+            const side = rand(3, 9);
+            const perim = side * 4;
+            qText = `Le périmètre de ce carré est de ${perim} cm. Combien mesure un côté ?`;
+            correct = String(side);
+            options = [String(side), String(perim / 2), String(perim / 4 + 2), String(side * side)];
+            codings = [
+                { type: 'tick', indices: [0, 1] }, { type: 'tick', indices: [1, 2] },
+                { type: 'tick', indices: [2, 3] }, { type: 'tick', indices: [3, 0] },
+                { type: 'right_angle', indices: [0, 1, 2] }
+            ];
+            explanation = `Côté = Périmètre ÷ 4 = ${perim} ÷ 4 = ${side} cm.`;
+        }
+        else { // def_parallelo
+            points = rotatePoints(SHAPES.PARALLELOGRAM, rotation);
+            qText = "Si un quadrilatère a ses diagonales qui se coupent en leur milieu, alors c'est forcément un...";
+            correct = "Parallélogramme";
+            options = ["Carré", "Rectangle", "Losange", "Parallélogramme"];
+            codings = []; // Pas de codage, question théorique sur la forme
+            explanation = "C'est la définition générale. Carré, Rectangle et Losange sont des cas particuliers, mais 'Parallélogramme' est la réponse toujours vraie.";
+        }
+    }
+
+    return {
+        question: qText,
+        options: responseType === "QCM" ? options.map(o => ({ value: o, isCorrect: o === correct })) : null,
+        correct: correct,
+        explanation: explanation,
+        responseType: responseType,
+        visualEngine: 'ENGINE_GEOMETRY',
+        visualConfig: {
+            points: points,
+            extraPoints: extraPoints, // Pour afficher le centre O
+            codings: codings
+        }
     };
 };

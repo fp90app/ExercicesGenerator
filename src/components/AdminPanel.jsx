@@ -25,6 +25,7 @@ import { processLevelData } from '../utils/mathGenerators';
 import PythagoreSystem from './PythagoreSystem';
 import NumberLineSystem from './NumberLineSystem';
 import CartesianSystem from './CartesianSystem';
+import GeometrySystem from './GeometrySystem';
 
 // (Vous pourrez ajouter ThalesSystem ici plus tard)
 
@@ -32,6 +33,7 @@ const ENGINE_REGISTRY = {
     'ENGINE_PYTHAGORE': PythagoreSystem,
     'ENGINE_NUMBER_LINE': NumberLineSystem,
     'ENGINE_CARTESIAN': CartesianSystem,
+    'ENGINE_GEOMETRY': GeometrySystem,
     // Quand tu auras Thalès, décommente juste la ligne dessous :
     // 'ENGINE_THALES': ThalesSystem,
 };

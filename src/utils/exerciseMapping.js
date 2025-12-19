@@ -18,8 +18,9 @@ import {
     generateFactoriseQuestion,
     generateMeanQuestion,
     generateAlgoQuestion,
-    generateGraphQuestion, // Assurez-vous d'importer celui-ci si vous l'avez
-    generateTestQuestion
+    generateGraphQuestion,
+    generateTestQuestion,
+    generateGeometryQuestion
 } from './mathGenerators';
 
 // 2. On crée un Dictionnaire
@@ -36,6 +37,9 @@ export const EXERCISE_MAPPING = {
     'auto_9_divisibilite': generateDivisibilityQuestion,
     'auto_10_vocabulaire_ops': generateVocabularyQuestion,
 
+    // --- Géométrie & Espace (Nouveau) ---
+    'auto_17_codage_figures': generateGeometryQuestion,
+
     // --- Calcul Littéral ---
     'auto_11_simplifier_litteral': generateSimplifyExpressionQuestion,
     'auto_12_valeur_expression': generateSubstitutionQuestion,
@@ -49,7 +53,7 @@ export const EXERCISE_MAPPING = {
     // Scratch fonctionne comme un générateur standard (il renvoie du JSON), donc on le mappe directement
     'auto_39_algo': generateAlgoQuestion,
 
-    // --- EXERCICES VISUELS (Moteurs Spéciaux) ---
+    // --- EXERCICES VISUELS (Moteurs Spéciaux - Legacy) ---
     // Au lieu d'une fonction, on met une "Clé" (String) que StandardGame va reconnaître
     'auto_25_pythagore': 'ENGINE_PYTHAGORE',
     'auto_26_thales': 'ENGINE_THALES',

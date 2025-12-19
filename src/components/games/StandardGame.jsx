@@ -3,6 +3,7 @@ import { doc, getDoc } from "firebase/firestore"; // J'ai retiré les imports in
 import { db } from "../../firebase";
 import * as math from 'mathjs';
 import { processLevelData } from '../../utils/mathGenerators';
+import GeometrySystem from '../GeometrySystem';
 
 
 
@@ -100,8 +101,49 @@ const UniversalInput = ({
 const StandardGame = (props) => {
     const { user, config, onFinish, onBack, onSound } = props;
 
+    // --- A. HOOK DYNAMIQUE (Firestore) ---
+    const { questionData: hookData, regenerate: hookRegenerate } = useMathGenerator(config.id, config.level);
+
+    // --- B. STATE LOCAL (Pour les générateurs JS comme Géométrie) ---
+    const [localData, setLocalData] = useState(null);
+
+    // --- C. LOGIQUE HYBRIDE ---
+    // Si le hook ne trouve rien (pas de JSON Firestore), on regarde si un générateur JS existe
+    useEffect(() => {
+        if (hookData) {
+            setLocalData(null);
+            return;
+        }
+
+        const generatorFunc = getGenerator(config.id);
+        if (typeof generatorFunc === 'function') {
+            try {
+                // On exécute le générateur JS
+                const data = generatorFunc({ level: config.level });
+                // Si le résultat contient 'visualEngine', c'est du "Nouveau Format" !
+                if (data && data.visualEngine) {
+                    setLocalData(data);
+                }
+            } catch (e) {
+                console.error("Erreur générateur local:", e);
+            }
+        }
+    }, [config.id, config.level, hookData]);
+
+    // On fusionne : soit les données du hook, soit celles du JS local
+    const questionData = hookData || localData;
+
+    // On adapte la fonction 'regenerate'
+    const regenerate = hookData ? hookRegenerate : () => {
+        const generatorFunc = getGenerator(config.id);
+        if (typeof generatorFunc === 'function') {
+            setLocalData(generatorFunc({ level: config.level }));
+        }
+    };
+
+
     // --- A. HOOK DYNAMIQUE ---
-    const { questionData, regenerate } = useMathGenerator(config.id, config.level);
+
 
     // --- B. ÉTATS DU JEU (Cycle de 10 questions) ---
     const [step, setStep] = useState(0);
@@ -367,7 +409,7 @@ const StandardGame = (props) => {
                             <div className="animate-in fade-in slide-in-from-bottom-2">
                                 <div className={`mb-4 p-4 rounded-xl text-center font-bold flex items-center justify-center gap-2 ${feedback === 'CORRECT' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                                     <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning-circle'} weight="fill" />
-                                    {feedback === 'CORRECT' ? 'Excellent !' : 'Aïe...'}
+                                    {feedback === 'CORRECT' ? 'Excellent !' : 'Erreur'}
                                 </div>
                                 {questionData.explanation && (
                                     <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 text-sm leading-relaxed">
@@ -583,6 +625,134 @@ const StandardGame = (props) => {
             );
         }
 
+        else if (questionData.visualEngine === 'ENGINE_GEOMETRY') {
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                    <div className="w-full max-w-2xl bg-white p-6 rounded-3xl shadow-xl border border-slate-200 relative">
+
+                        {/* 1. EN-TÊTE */}
+                        <div className="flex justify-between items-start mb-6 gap-4">
+                            <div>
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Question {step + 1} / 10</div>
+                                <h2 className="text-xl font-black text-slate-800">
+                                    <MathText text={questionData.question} />
+                                </h2>
+                            </div>
+                            <button onClick={onBack} className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-red-500 rounded-full bg-slate-50 hover:bg-red-50 transition-colors">
+                                <Icon name="x" weight="bold" />
+                            </button>
+                        </div>
+
+                        {/* 2. VISUEL GÉOMÉTRIE (Le carré avec les codages) */}
+                        <div className="mb-8 aspect-square max-h-[300px] mx-auto bg-white rounded-xl border border-slate-100 shadow-inner flex items-center justify-center p-4">
+                            <GeometrySystem config={questionData.visualConfig} />
+                        </div>
+
+                        {/* 3. ZONE DE RÉPONSE (Gère QCM ou Numérique selon le niveau) */}
+                        {questionData.responseType === 'QCM' ? (
+                            // --- MODE QCM ---
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                                {questionData.options?.map((optionObj, idx) => {
+                                    const isCorrect = optionObj.isCorrect;
+                                    const isSelected = userAnswer === optionObj.value;
+
+                                    // Gestion des couleurs des boutons
+                                    let btnClass = "bg-white border-2 border-slate-200 text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 hover:translate-y-[-2px] hover:shadow-md";
+                                    let icon = null;
+
+                                    if (feedback) {
+                                        if (isCorrect) {
+                                            btnClass = "bg-emerald-500 border-emerald-600 text-white shadow-md scale-[1.02]";
+                                            icon = <Icon name="check-circle" weight="fill" className="ml-2" />;
+                                        } else if (isSelected) {
+                                            btnClass = "bg-red-500 border-red-600 text-white opacity-100 shadow-md";
+                                            icon = <Icon name="x-circle" weight="fill" className="ml-2" />;
+                                        } else {
+                                            btnClass = "opacity-40 bg-slate-100 border-slate-200 cursor-not-allowed";
+                                        }
+                                    }
+
+                                    return (
+                                        <button
+                                            key={idx}
+                                            disabled={feedback !== null}
+                                            onClick={() => {
+                                                if (!feedback) {
+                                                    setUserAnswer(optionObj.value);
+                                                    if (isCorrect) {
+                                                        if (onSound) onSound('CORRECT');
+                                                        setFeedback('CORRECT');
+                                                        setScore(s => s + 1);
+                                                    } else {
+                                                        if (onSound) onSound('WRONG');
+                                                        setFeedback('WRONG');
+                                                    }
+                                                }
+                                            }}
+                                            className={`p-4 rounded-xl font-bold text-lg transition-all flex items-center justify-between text-left ${btnClass}`}
+                                        >
+                                            <MathText text={optionObj.value} />
+                                            {icon}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            // --- MODE NUMÉRIQUE (Input + Clavier) ---
+                            <div className="mb-6 relative">
+                                <UniversalInput
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    onEnter={handleValidate}
+                                    isKeyboardOpen={showKeyboard}
+                                    onToggleKeyboard={() => setShowKeyboard(!showKeyboard)}
+                                    feedback={feedback}
+                                    placeholder="Réponse..."
+                                    inputMode="decimal"
+                                />
+                                {showKeyboard && (
+                                    <MathKeyboard
+                                        onKeyPress={handleVirtualKey}
+                                        onDelete={handleVirtualDelete}
+                                        onClose={() => setShowKeyboard(false)}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {/* 4. FEEDBACK & CORRECTION */}
+                        {feedback && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2 mb-6">
+                                <div className={`p-4 rounded-xl text-center font-bold flex items-center justify-center gap-2 mb-4 ${feedback === 'CORRECT' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                    <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning-circle'} weight="fill" size={24} />
+                                    <span>{feedback === 'CORRECT' ? 'Excellent !' : 'Erreur'}</span>
+                                </div>
+                                {questionData.explanation && (
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 text-sm">
+                                        <div className="font-bold text-slate-400 text-xs uppercase mb-1 flex items-center gap-1"><Icon name="info" weight="fill" /> Correction</div>
+                                        <MathText text={questionData.explanation} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 5. BOUTONS D'ACTION (Valider ou Suivant) */}
+                        {(!feedback && questionData.responseType !== 'QCM') ? (
+                            <button onClick={handleValidate} disabled={!userAnswer} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-black transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                                <Icon name="check" weight="bold" /> Valider
+                            </button>
+                        ) : (
+                            feedback && (
+                                <button onClick={handleNext} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">
+                                    {step < 9 ? "Question Suivante" : "Voir mon score"} <Icon name="arrow-right" weight="bold" />
+                                </button>
+                            )
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
         // 3. [NOUVEAU] MOTEUR GÉNÉRIQUE (Pour Carrés Parfaits et les autres)
         // C'est ce bloc qui va empêcher le crash !
         return (
@@ -721,7 +891,7 @@ const StandardGame = (props) => {
                         <div className="animate-in fade-in slide-in-from-bottom-2 mb-6">
                             <div className={`p-4 rounded-xl text-center font-bold flex items-center justify-center gap-2 mb-4 ${feedback === 'CORRECT' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                                 <Icon name={feedback === 'CORRECT' ? 'check-circle' : 'warning-circle'} weight="fill" size={24} />
-                                <span className="text-lg">{feedback === 'CORRECT' ? 'Excellent !' : 'Aïe...'}</span>
+                                <span className="text-lg">{feedback === 'CORRECT' ? 'Excellent !' : 'Erreur'}</span>
                             </div>
 
                             {questionData.explanation && (
