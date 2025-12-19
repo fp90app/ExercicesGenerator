@@ -16,6 +16,7 @@ import { QUESTIONS_TABLES, QUESTIONS_DIVISIONS } from '../../utils/data';
 import { getGenerator } from '../../utils/exerciseMapping';
 import { useMathGenerator } from '../../hooks/useMathGenerator';
 import MathText from '../MathText';
+import MathKeyboard from '../MathKeyboard';
 
 // --- IMPORTS COMPOSANTS SPÉCIAUX ---
 import ExerciceLectureGraphique from '../ExerciceLectureGraphique';
@@ -31,6 +32,68 @@ import PythagoreSystem from '../PythagoreSystem';
 import NumberLineSystem from '../NumberLineSystem';
 import CartesianSystem from '../CartesianSystem';
 
+
+// --- COMPOSANT "SUPER INPUT" (À placer AVANT StandardGame) ---
+// À placer AVANT le composant StandardGame
+const UniversalInput = ({
+    value,
+    onChange,
+    onEnter,
+    isKeyboardOpen,
+    onToggleKeyboard,
+    placeholder,
+    feedback,
+    type = 'text',      // Par défaut 'text'
+    inputMode = 'text'  // Par défaut 'text', mais on peut forcer 'decimal'
+}) => {
+    return (
+        <div className="relative w-full mb-6"> {/* J'ai ajouté mb-6 pour l'espacement constant */}
+            <input
+                type={type}
+                // LOGIQUE CRITIQUE : 
+                // 1. Si clavier virtuel ouvert -> "none" (bloque le clavier mobile)
+                // 2. Sinon, on utilise le inputMode que tu as demandé (ex: "decimal")
+                inputMode={isKeyboardOpen ? "none" : inputMode}
+
+                value={value}
+                onChange={onChange}
+                disabled={feedback !== null}
+                autoFocus
+                placeholder={placeholder}
+                // J'ai unifié le style pour qu'il soit propre partout (basé sur ton snippet le plus complet)
+                className={`w-full p-4 pr-12 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
+                    feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
+                        'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 text-slate-700'
+                    }`}
+                onKeyDown={(e) => {
+                    // On garde ta logique exacte de validation avec Entrée
+                    if (e.key === 'Enter' && !feedback && value) onEnter();
+                }}
+            />
+
+            {/* Le bouton Icône Clavier */}
+            {/* Le bouton Icône Clavier */}
+            <button
+                type="button"
+                onClick={onToggleKeyboard}
+                // Changement de style : plus sobre quand ouvert
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${isKeyboardOpen
+                    ? 'text-indigo-600 hover:bg-indigo-50' // Plus de bordure moche quand ouvert
+                    : 'text-slate-300 hover:text-indigo-500 hover:bg-slate-50'
+                    }`}
+                title={isKeyboardOpen ? "Fermer le clavier" : "Ouvrir le clavier mathématique"}
+            >
+                {/* Si ouvert : Flèche bas (CaretDown). Si fermé : Clavier */}
+                <Icon
+                    name={isKeyboardOpen ? "caret-down" : "keyboard"}
+                    size={24}
+                    weight="bold"
+                />
+            </button>
+        </div>
+    );
+};
+
 // =========================================================
 // 1. COMPOSANT PRINCIPAL (Le "Routeur" Intelligent)
 // =========================================================
@@ -45,6 +108,13 @@ const StandardGame = (props) => {
     const [score, setScore] = useState(0);
     const [gameState, setGameState] = useState('playing'); // 'playing' | 'finished'
     const [userAnswer, setUserAnswer] = useState("");
+
+    // Keyboard
+    const [showKeyboard, setShowKeyboard] = useState(false);
+    const handleVirtualKey = (val) => setUserAnswer(prev => prev + val);
+    const handleVirtualDelete = () => setUserAnswer(prev => prev.slice(0, -1));
+
+
     const [feedback, setFeedback] = useState(null);
     const [showCalc, setShowCalc] = useState(false);
 
@@ -279,7 +349,18 @@ const StandardGame = (props) => {
                         {showCalc && <div className="absolute top-20 right-4 z-50 shadow-2xl"><Calculator onClose={() => setShowCalc(false)} /></div>}
 
                         <div className="mb-6">
-                            <input type="number" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} disabled={feedback !== null} placeholder="Ta réponse..." className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50'}`} onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()} />
+                            <UniversalInput
+                                value={userAnswer}
+                                onChange={(e) => setUserAnswer(e.target.value)}
+                                onEnter={handleValidate}
+                                isKeyboardOpen={showKeyboard}
+                                onToggleKeyboard={() => setShowKeyboard(!showKeyboard)}
+                                feedback={feedback}
+                                // TES PARAMÈTRES SPÉCIFIQUES :
+                                placeholder="Ta réponse..."
+                                inputMode="decimal"
+                                type="number" // Tu peux garder number, ou passer en text pour éviter les bugs de scroll sur certains navigateurs
+                            />
                         </div>
 
                         {feedback && (
@@ -344,19 +425,17 @@ const StandardGame = (props) => {
                         {/* INPUT RÉPONSE */}
                         <div className="flex gap-4 items-center mb-6">
                             <div className="flex-1">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
+                                <UniversalInput
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={feedback !== null}
-                                    autoFocus
+                                    onEnter={handleValidate}
+                                    isKeyboardOpen={showKeyboard}
+                                    onToggleKeyboard={() => setShowKeyboard(!showKeyboard)}
+                                    feedback={feedback}
+                                    // TES PARAMÈTRES SPÉCIFIQUES :
                                     placeholder="Abscisse..."
-                                    className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
-                                        feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
-                                            'border-slate-200 focus:border-indigo-500'
-                                        }`}
-                                    onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                    inputMode="decimal" // Important pour avoir le clavier numérique mobile par défaut
+                                    type="text"
                                 />
                             </div>
 
@@ -381,8 +460,16 @@ const StandardGame = (props) => {
                             </div>
                         )}
 
-                        {/* J'AI SUPPRIMÉ L'ANCIEN BOUTON "ABSOLUTE" QUI ÉTAIT ICI */}
+                        {showKeyboard && (
+                            <MathKeyboard
+                                onKeyPress={handleVirtualKey}
+                                onDelete={handleVirtualDelete}
+                                onClose={() => setShowKeyboard(false)}
+                            />
+                        )}
                     </div>
+
+
                 </div>
             );
         }
@@ -453,18 +540,17 @@ const StandardGame = (props) => {
                         ) : (
                             <div className="flex gap-4 items-center mb-6">
                                 <div className="flex-1">
-                                    <input
-                                        type="text"
+                                    <UniversalInput
                                         value={userAnswer}
                                         onChange={(e) => setUserAnswer(e.target.value)}
-                                        disabled={feedback !== null}
-                                        autoFocus
+                                        onEnter={handleValidate}
+                                        isKeyboardOpen={showKeyboard}
+                                        onToggleKeyboard={() => setShowKeyboard(!showKeyboard)}
+                                        feedback={feedback}
+                                        // TES PARAMÈTRES SPÉCIFIQUES :
                                         placeholder="Ex: (2;-3)"
-                                        className={`w-full p-4 text-2xl font-bold text-center rounded-xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' :
-                                            feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' :
-                                                'border-slate-300 bg-slate-50 text-slate-800 focus:border-indigo-600'
-                                            }`}
-                                        onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                        inputMode="text" // On laisse texte car il faut écrire des parenthèses et point-virgules
+                                        type="text"
                                     />
                                 </div>
                                 {!feedback ? (
@@ -484,6 +570,13 @@ const StandardGame = (props) => {
                                 </div>
                                 <MathText text={questionData.explanation} />
                             </div>
+                        )}
+                        {showKeyboard && (
+                            <MathKeyboard
+                                onKeyPress={handleVirtualKey}
+                                onDelete={handleVirtualDelete}
+                                onClose={() => setShowKeyboard(false)}
+                            />
                         )}
                     </div>
                 </div>
@@ -578,61 +671,48 @@ const StandardGame = (props) => {
                         </div>
                     ) : (
                         // --- MODE CLAVIER VIRTUEL (Pour les autres exos) ---
+                        // --- MODE CLAVIER VIRTUEL (Nouveau Système) ---
                         <>
-                            <div className="mt-4 mb-2 animate-in slide-in-from-bottom-4 fade-in duration-500 w-full max-w-4xl mx-auto">
-                                <div className="flex flex-col md:flex-row gap-3">
-                                    {/* ZONE 1 : CHIFFRES */}
-                                    <div className="grid grid-cols-4 gap-1.5 p-2 bg-slate-100 rounded-xl border border-slate-200 shadow-sm md:w-1/2">
-                                        {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '(', ')'].map(num => (
-                                            <button
-                                                key={num}
-                                                onClick={() => setUserAnswer(prev => prev + num)}
-                                                disabled={feedback !== null}
-                                                className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-slate-200 font-black text-slate-700 text-xl active:border-b-0 active:translate-y-[2px] transition-all hover:bg-slate-50 disabled:opacity-50"
-                                            >
-                                                {num}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* ZONE 2 : ALGÈBRE */}
-                                    <div className="flex-1 p-2 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm md:w-1/2">
-                                        <div className="grid grid-cols-5 gap-1">
-                                            {((config?.common_config?.custom_keyboard) || (questionData?.custom_keyboard) || ['x', 'y', 'a', 'b', 't', '+', '-', '/', '*', '²', '^']).map(char => (
-                                                <button
-                                                    key={char}
-                                                    onClick={() => setUserAnswer(prev => prev + char)}
-                                                    disabled={feedback !== null}
-                                                    className="h-12 bg-white rounded-lg shadow-sm border-b-2 border-indigo-200 font-bold text-indigo-600 text-lg active:border-b-0 active:translate-y-[2px] transition-all hover:bg-indigo-50 disabled:opacity-50"
-                                                >
-                                                    {char}
-                                                </button>
-                                            ))}
-                                            <button
-                                                onClick={() => setUserAnswer(prev => prev.slice(0, -1))}
-                                                disabled={feedback !== null}
-                                                className="h-12 bg-red-100 rounded-lg shadow-sm border-b-2 border-red-200 text-red-500 active:border-b-0 active:translate-y-[2px] transition-all hover:bg-red-200 flex items-center justify-center disabled:opacity-50 col-span-1"
-                                            >
-                                                <Icon name="backspace" weight="bold" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="mb-8">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
+                            {/* ZONE INPUT AVEC BOUTON CLAVIER */}
+                            <div className="relative mb-8 mt-8">
+                                <UniversalInput
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={feedback !== null}
-                                    autoFocus
-                                    placeholder="Votre réponse..."
-                                    className={`w-full p-5 text-3xl font-bold text-center rounded-2xl border-2 outline-none transition-all shadow-sm ${feedback === 'CORRECT' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : feedback === 'WRONG' ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 text-slate-700'}`}
-                                    onKeyDown={(e) => e.key === 'Enter' && !feedback && userAnswer && handleValidate()}
+                                    onEnter={handleValidate}
+                                    isKeyboardOpen={showKeyboard}
+                                    onToggleKeyboard={() => setShowKeyboard(!showKeyboard)}
+                                    feedback={feedback}
+                                    // TES PARAMÈTRES SPÉCIFIQUES :
+                                    placeholder="Réponse..."
+                                    inputMode="decimal" // Important pour avoir le clavier numérique mobile par défaut
+                                    type="text"
                                 />
+                                {/* LE PETIT BOUTON POUR ACTIVER LE CLAVIER */}
+                                <button
+                                    onClick={() => setShowKeyboard(!showKeyboard)}
+                                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-colors border-2 ${showKeyboard
+                                        ? 'bg-indigo-100 text-indigo-600 border-indigo-200'
+                                        : 'bg-white text-slate-400 border-slate-100 hover:text-indigo-600 hover:border-indigo-200'
+                                        }`}
+                                    title="Ouvrir le clavier mathématique"
+                                >
+                                    <Icon name="keyboard" size={26} weight={showKeyboard ? "fill" : "bold"} />
+                                </button>
                             </div>
+
+                            {/* LE COMPOSANT CLAVIER MATHÉMATIQUE */}
+                            {showKeyboard && (
+                                <>
+                                    {/* Espace vide pour que le clavier ne cache pas le bouton valider en bas */}
+                                    <div className="h-72 w-full"></div>
+
+                                    <MathKeyboard
+                                        onKeyPress={handleVirtualKey}
+                                        onDelete={handleVirtualDelete}
+                                        onClose={() => setShowKeyboard(false)}
+                                    />
+                                </>
+                            )}
                         </>
                     )}
 
