@@ -26,6 +26,7 @@ import PythagoreSystem from './PythagoreSystem';
 import NumberLineSystem from './NumberLineSystem';
 import CartesianSystem from './CartesianSystem';
 import GeometrySystem from './GeometrySystem';
+import AnglesSystem from './AnglesSystem';
 
 // (Vous pourrez ajouter ThalesSystem ici plus tard)
 
@@ -34,6 +35,8 @@ const ENGINE_REGISTRY = {
     'ENGINE_NUMBER_LINE': NumberLineSystem,
     'ENGINE_CARTESIAN': CartesianSystem,
     'ENGINE_GEOMETRY': GeometrySystem,
+    'ENGINE_ANGLES': AnglesSystem,
+
     // Quand tu auras Thalès, décommente juste la ligne dessous :
     // 'ENGINE_THALES': ThalesSystem,
 };
@@ -164,6 +167,39 @@ const AdminPanel = ({ user, onBack }) => {
 
     const [activeTab, setActiveTab] = useState('USERS'); // USERS, CONTENT, CONFIG, LIST, EDITOR
     const [loading, setLoading] = useState(false);
+    // ...
+    const [tickets, setTickets] = useState([]);
+
+    // Fonction pour charger les messages
+    const fetchTickets = async () => {
+        try {
+            const q = query(collection(db, "tickets"), orderBy("createdAt", "desc"), limit(50));
+            const snap = await getDocs(q);
+            setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (e) {
+            console.error("Erreur chargement tickets", e);
+            toast.error("Impossible de charger les messages");
+        }
+    };
+
+    // Recharger quand on clique sur l'onglet MESSAGES
+    useEffect(() => {
+        if (activeTab === 'MESSAGES') {
+            fetchTickets();
+        }
+    }, [activeTab]);
+
+    // Fonction pour supprimer un ticket traité
+    const handleDeleteTicket = async (id) => {
+        if (!window.confirm("Supprimer ce message ?")) return;
+        try {
+            await deleteDoc(doc(db, "tickets", id));
+            setTickets(prev => prev.filter(t => t.id !== id));
+            toast.success("Message supprimé");
+        } catch (e) {
+            toast.error("Erreur suppression");
+        }
+    };
 
     // --- DONNÉES CMS (NOUVEAU) ---
     const [program, setProgram] = useState([]); // Le programme chargé depuis Firestore
@@ -656,6 +692,15 @@ const AdminPanel = ({ user, onBack }) => {
                     <TabButton id="CONTENT" label="Contenu & Accès" icon="lock-key-open" />
                     <TabButton id="CONFIG" label="Config" icon="gear" />
                     <TabButton id="LIST" label="Brevets" icon="list-dashes" />
+                    <button
+                        onClick={() => setActiveTab('MESSAGES')}
+                        className={`px-4 py-2 rounded-lg font-bold transition-all ${activeTab === 'MESSAGES' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <Icon name="envelope-open" />
+                            <span>Messages</span>
+                        </div>
+                    </button>
                     <button onClick={() => setActiveTab('EDITOR')} className={`px-4 py-2 font-bold rounded-t-xl transition-colors ${activeTab === 'EDITOR' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}>Éditeur JSON</button>
                 </div>
 
@@ -840,6 +885,88 @@ const AdminPanel = ({ user, onBack }) => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* ONGLET MESSAGES */}
+                    {activeTab === 'MESSAGES' && (
+                        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-black text-slate-800">Boîte de réception</h2>
+                                <button onClick={fetchTickets} className="p-2 bg-white rounded-full shadow hover:rotate-180 transition-transform"><Icon name="arrows-clockwise" /></button>
+                            </div>
+
+                            {tickets.length === 0 ? (
+                                <div className="text-center py-20 text-slate-400">
+                                    <Icon name="tray" size={48} className="mx-auto mb-4 opacity-50" />
+                                    <p>Aucun message pour le moment.</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {tickets.map(ticket => (
+                                        <div key={ticket.id} className={`bg-white p-6 rounded-2xl shadow-sm border-l-8 ${ticket.type === 'BUG' ? 'border-red-500' : 'border-indigo-500'} relative group`}>
+
+                                            {/* En-tête du message */}
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider text-white ${ticket.type === 'BUG' ? 'bg-red-500' : 'bg-indigo-500'}`}>
+                                                        {ticket.type}
+                                                    </span>
+                                                    <span className="font-bold text-slate-700 text-sm">
+                                                        {ticket.userContact || ticket.userEmail || "Anonyme"}
+                                                    </span>
+                                                    <span className="text-xs text-slate-400">
+                                                        {new Date(ticket.createdAt).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteTicket(ticket.id)}
+                                                    className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                                                    title="Supprimer"
+                                                >
+                                                    <Icon name="trash" weight="bold" />
+                                                </button>
+                                            </div>
+
+                                            <span className="font-bold text-slate-700 text-sm">
+                                                {ticket.userContact || "Anonyme"}
+                                                {/* Afficher l'email de réponse s'il existe */}
+                                                {ticket.replyEmail && (
+                                                    <span className="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-mono text-xs">
+                                                        ✉️ {ticket.replyEmail}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {/* Corps du message */}
+                                            <p className="text-slate-800 font-medium whitespace-pre-wrap mb-4 pl-1">
+                                                {ticket.message}
+                                            </p>
+
+
+
+                                            {/* ZONE TECHNIQUE (Si Bug) */}
+                                            {ticket.technicalContext && (
+                                                <div className="bg-slate-900 rounded-xl p-4 mt-4 overflow-hidden">
+                                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 border-b border-slate-700 pb-2">
+                                                        <Icon name="code" /> Données Techniques (Debug)
+                                                    </div>
+                                                    <pre className="font-mono text-[10px] text-green-400 overflow-x-auto whitespace-pre-wrap break-all">
+                                                        {ticket.technicalContext}
+                                                    </pre>
+
+                                                    {/* Astuce : Un bouton pour copier le contexte */}
+                                                    <button
+                                                        onClick={() => { navigator.clipboard.writeText(ticket.technicalContext); toast.success("Copié !"); }}
+                                                        className="mt-2 text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        Copier le JSON
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 

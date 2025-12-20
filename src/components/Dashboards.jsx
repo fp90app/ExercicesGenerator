@@ -1,27 +1,14 @@
 import React, { useState, useEffect } from 'react';
-
-// 1. Imports pour la Base de Données (Firestore)
 import { collection, getDocs, doc, getDoc, query, where, setDoc } from "firebase/firestore";
-
-// 2. Imports pour l'Authentification (Auth) - C'EST ICI LA CORRECTION
 import { getAuth } from "firebase/auth";
-
-// 3. Import de tes instances initialisées
 import { db } from "../firebase";
-
 import { useProgram } from '../hooks/useProgram';
-
-// Initialisation de l'auth pour ce composant
+import ContactModal from './ContactModal';
 const auth = getAuth();
-
-
-
 import { usePremium } from '../hooks/usePremium';
 import { toast } from 'react-hot-toast';
-
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal, LoadingScreen, PremiumModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST } from '../utils/data';
-
 // --- UTILITAIRES COULEURS ---
 const getLevelColor = (count) => {
     if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
@@ -29,12 +16,6 @@ const getLevelColor = (count) => {
     if (count === 1) return "bg-emerald-50 text-emerald-700 border-emerald-200";
     return "bg-white text-slate-700 border-slate-300 hover:border-indigo-400 hover:text-indigo-600 hover:shadow-md";
 };
-
-// ============================================================================
-// [NOUVEAU] COMPOSANT : BANNIÈRE D'ANNONCE
-// Récupère le message depuis Firestore (config/general)
-// ============================================================================
-
 
 const NewsBanner = () => {
     const [news, setNews] = useState(null);
@@ -442,6 +423,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     const [showXPInfo, setShowXPInfo] = useState(false);
     const [contentRules, setContentRules] = useState({});
     const { program, loading: programLoading } = useProgram();
+    const [showContact, setShowContact] = useState(false);
 
     useEffect(() => {
         // On charge la config de contenu
@@ -488,6 +470,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 </div>
                 {footer && <div className={`mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold flex items-center gap-1 w-full ${style.footer}`}><Icon name="trophy" className="text-sm shrink-0" /><div className="w-full truncate">{typeof footer === 'function' ? footer() : footer}</div></div>}
             </button>
+
         );
     };
 
@@ -532,6 +515,12 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     return (
         <div className="min-h-screen bg-slate-50 pb-8 md:pb-12">
             {showXPInfo && <XPHelpModal onClose={() => setShowXPInfo(false)} />}
+            {showContact && (
+                <ContactModal
+                    user={user}
+                    onClose={() => setShowContact(false)}
+                />
+            )}
 
             <header className="bg-white border-b border-slate-100 sticky top-0 z-30">
                 <div className="max-w-5xl mx-auto px-4 h-14 md:h-16 flex justify-between items-center">
@@ -775,7 +764,18 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     }}
                 />
             )}
+            <button
+                onClick={() => setShowContact(true)}
+                className="fixed bottom-6 right-6 bg-white text-indigo-600 p-4 rounded-full shadow-xl border border-indigo-100 hover:scale-110 hover:bg-indigo-600 hover:text-white transition-all z-40 group"
+                title="Nous contacter"
+            >
+                <Icon name="chat-circle-dots" weight="fill" size={32} />
+                <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Besoin d'aide ?
+                </span>
+            </button>
 
         </div>
+
     );
 };

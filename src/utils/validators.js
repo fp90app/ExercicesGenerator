@@ -33,123 +33,155 @@ const PythagoreConfigSchema = z.object({
     }),
     // "given" définit quelles valeurs sont affichées (ex: AB, AC)
     given: z.record(z.string(), z.object({
-        val: z.any(),
-        unit: z.string().optional()
-    })),
-    targetKey: z.string().optional(),
-    qType: z.enum(["CALC", "EQUALITY"]).optional()
-});
-
-const CartesianConfigSchema = z.object({
-    min: stringToNumber.optional(),
-    max: stringToNumber.optional(),
-    step: stringToNumber.optional(),
-    gridSize: stringToNumber.optional(),
-    f: z.string().optional(), // ex: "x^2 + 1"
-    showGrid: z.boolean().optional(),
-    // Points spécifiques à afficher
-    points: z.array(z.object({
-        x: z.any(),
-        y: z.any(),
-        label: z.string().optional(),
-        color: z.string().optional(),
-        shape: z.string().optional()
-    })).optional()
+        value: z.union([z.number(), z.string()]),
+        label: z.string().optional() // ex: "x" ou "?"
+    }))
 });
 
 const NumberLineConfigSchema = z.object({
-    min: stringToNumber.optional(),
-    max: stringToNumber.optional(),
+    min: stringToNumber,
+    max: stringToNumber,
     step: stringToNumber.optional(),
     points: z.array(z.object({
-        val: z.any(),
+        value: stringToNumber, // Position (ex: 3.5)
+        label: z.string().optional(), // Label sous l'axe
+        color: z.string().optional(),
+        draggable: z.boolean().optional() // Si c'est le point à placer
+    })).optional(),
+    intervals: z.array(z.object({
+        start: stringToNumber,
+        end: stringToNumber,
+        color: z.string().optional(),
+        brackets: z.enum(["[]", "][", "[ [", "] ]", "[", "]"]).optional() // Pour inéquations
+    })).optional()
+});
+
+const CartesianConfigSchema = z.object({
+    xRange: z.array(stringToNumber), // [min, max]
+    yRange: z.array(stringToNumber),
+    step: stringToNumber.optional(),
+    points: z.array(z.object({
+        x: stringToNumber,
+        y: stringToNumber,
         label: z.string().optional(),
+        color: z.string().optional()
+    })).optional(),
+    functions: z.array(z.object({
+        fn: z.string(), // ex: "x^2 + 1"
         color: z.string().optional()
     })).optional()
 });
 
-// --- 2. SCHÉMA GÉNÉRIQUE (Pour les overrides dans les niveaux) ---
-// On garde une version souple pour "visual_config_override" à l'intérieur des niveaux
-const GenericVisualConfigSchema = z.object({
-    min: stringToNumber.optional(),
-    max: stringToNumber.optional(),
-    f: z.string().optional(),
-    points: z.any().optional(),
-    given: z.any().optional(),
-    vals: z.any().optional() // Souvent utilisé pour injecter les valeurs calculées
-}).passthrough(); // .passthrough() accepte d'autres clés non définies ici
+// --- SCHEMA GEOMETRIE CORRIGÉ ---
+const GeometryConfigSchema = z.object({
+    // On valide les points (obligatoire)
+    points: z.array(z.object({
+        x: stringToNumber,
+        y: stringToNumber,
+        label: z.string().optional()
+    }).passthrough()),
 
-// --- 3. SCHÉMA D'UN NIVEAU (LEVEL) ---
+    // ✅ CORRECTION 1 : On autorise explicitement les lignes
+    lines: z.array(z.array(z.number())).optional(),
 
-const LevelSchema = z.object({
-    // Type de réponse attendue
-    response_type: z.enum(["QCM", "NUMERIC", "TEXT", "GRAPH_POINT"]).default("NUMERIC"),
+    // On valide les points extra (optionnel)
+    extraPoints: z.array(z.object({
+        x: stringToNumber,
+        y: stringToNumber,
+        label: z.string().optional()
+    }).passthrough()).optional(),
 
-    // Variables (Expressions MathJS ou valeurs fixes)
-    variables: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+    // On valide les codages
+    codings: z.array(z.object({
+        type: z.string(),
+        indices: z.array(z.number()),
+        label: z.string().optional(),
+        color: z.string().optional(),
+        hide: z.union([z.boolean(), z.string()]).optional(),
+        size: z.number().optional()
+    }).passthrough()).optional()
 
-    // Calculs intermédiaires
-    calculations: z.record(z.string(), z.string()).optional(),
+}).passthrough();
 
-    // Textes
-    question_template: z.string({ required_error: "La question est obligatoire" }),
-    explanation_template: z.string().optional(),
 
-    // La réponse correcte (formule ou valeur)
-    correct_answer: z.string({ required_error: "La réponse correcte est obligatoire" }),
 
-    // Surcharge de la config visuelle pour ce niveau
-    visual_config_override: GenericVisualConfigSchema.optional(),
+const AnglesConfigSchema = z.object({
+    mode: z.string(), // "OPPOSES", "COMPLEMENTAIRES"...
+    angle: stringToNumber.optional(),
+    labels: z.record(z.string()).optional(),
+    colors: z.record(z.string()).optional(),
+    hideBlue: z.boolean().optional(),
+    hideRed: z.boolean().optional()
+}).passthrough();
 
-    // Récompense
-    xp_reward: stringToNumber.optional().default(5)
+
+// --- 2. SCHÉMA GLOBAL DE LA COUCHE VISUELLE ---
+
+const VisualLayerSchema = z.object({
+    visual_engine: z.enum([
+        "NONE",
+        "ENGINE_PYTHAGORE",
+        "ENGINE_NUMBER_LINE",
+        "ENGINE_CARTESIAN",
+        "ENGINE_GEOMETRY",
+        "ENGINE_ANGLES",
+        // Ajouter ici les futurs moteurs (Thalès...)
+    ]),
+
+    // Config commune (Template)
+    common_config: z.object({
+        visual_config_template: z.union([
+            PythagoreConfigSchema,
+            NumberLineConfigSchema,
+            CartesianConfigSchema,
+            GeometryConfigSchema,
+            AnglesConfigSchema,
+            z.record(z.any()) // Fallback pour éviter les blocages
+        ]).optional()
+    }).optional(),
+
+    // Config par niveau (Override)
+    levels: z.record(z.string(), z.object({
+        visual_config_override: z.union([
+            PythagoreConfigSchema,
+            NumberLineConfigSchema,
+            CartesianConfigSchema,
+            GeometryConfigSchema,
+            z.record(z.any())
+        ]).optional()
+        // Note: Le reste (variables, question_template...) est géré par BaseExerciseSchema
+    }))
 });
 
-// --- 4. LE "SWITCH" POLYMORPHE (MOTEUR + CONFIG) ---
+// --- 3. SCHÉMA DES VARIABLES MATHÉMATIQUES ---
 
-const VisualLayerSchema = z.discriminatedUnion("visual_engine", [
-    // Cas 1 : Pas de moteur visuel (Juste du texte)
-    z.object({
-        visual_engine: z.literal("NONE"),
-        common_config: z.object({}).optional()
-    }),
-    // Cas 2 : Moteur Pythagore
-    z.object({
-        visual_engine: z.literal("ENGINE_PYTHAGORE"),
-        common_config: z.object({
-            visual_config_template: PythagoreConfigSchema
-        }).optional()
-    }),
-    // Cas 3 : Moteur Cartésien (Fonctions, Repère)
-    z.object({
-        visual_engine: z.literal("ENGINE_CARTESIAN"),
-        common_config: z.object({
-            visual_config_template: CartesianConfigSchema
-        }).optional()
-    }),
-    // Cas 4 : Droite Graduée
-    z.object({
-        visual_engine: z.literal("ENGINE_NUMBER_LINE"),
-        common_config: z.object({
-            visual_config_template: NumberLineConfigSchema
-        }).optional()
-    }),
-    // Cas 5 : Moteur Thalès (Prévu pour le futur)
-    z.object({
-        visual_engine: z.literal("ENGINE_THALES"),
-        // CORRECTION ICI : .passthrough() AVANT .optional()
-        common_config: z.object({}).passthrough().optional()
-    })
-]);
+const VariablesSchema = z.record(z.string(), z.string()); // "a": "randomInt(1, 10)"
 
-// --- 5. SCHÉMA DE BASE DE L'EXERCICE ---
+// --- 4. SCHÉMA DE L'EXERCICE DE BASE (SANS VISUEL) ---
+
+const LevelSchema = z.object({
+    variables: VariablesSchema.optional(),
+    question_template: z.string(), // "Calcule {a} + {b}"
+    explanation_template: z.string().optional(),
+    response_type: z.enum(["NUMERIC", "QCM", "TEXT", "MATH_KEYBOARD"]).optional(),
+    correct_answer: z.string(), // Formule MathJS ou texte
+
+    // ✅ CORRECTION 2 : On accepte soit des Strings (ancien format), soit des Objets (nouveau format avec isCorrect)
+    qcm_options: z.array(
+        z.union([
+            z.string(),
+            z.object({
+                value: z.string(),
+                isCorrect: z.union([z.boolean(), z.string()]).optional()
+            }).passthrough()
+        ])
+    ).optional(),
+
+    xp_reward: z.number().optional().default(5)
+});
 
 const BaseExerciseSchema = z.object({
-    id: z.string().min(3, "L'ID doit faire au moins 3 caractères"),
-    title: z.string().optional(),
-    published: z.boolean().optional(),
-
-    // Dictionnaire des niveaux ("1", "2", "3"...)
+    id: z.string(),
     levels: z.record(z.string(), LevelSchema).refine((levels) => Object.keys(levels).length > 0, {
         message: "Il faut au moins un niveau (ex: '1')"
     })
@@ -186,7 +218,7 @@ export const parseAndValidateExercise = (jsonString) => {
             // Formattage lisible des erreurs Zod
             const msg = e.errors.map(err => {
                 const path = err.path.join('.');
-                return `• ${path}: ${err.message}`;
+                return `[${path}] : ${err.message}`;
             }).join('\n');
             return { success: false, error: msg };
         }
