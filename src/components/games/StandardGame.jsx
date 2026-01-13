@@ -27,6 +27,7 @@ import ExerciceThales from './ExerciceThales';
 import ExerciceTableauValeursCourbe from './ExerciceTableauValeursCourbe';
 import ExercicePythagore from './ExercicePythagore';
 import ScratchScript from './ScratchBlock';
+import ExerciceTrigo from './ExerciceTrigo';
 
 
 // =========================================================
@@ -254,7 +255,7 @@ const StandardGame = (props) => {
     const handleValidate = () => {
         if (!questionData) return;
 
-        // --- 1. FONCTION DE NETTOYAGE ---
+        // --- 1. FONCTIONS DE NETTOYAGE ---
         const normalize = (str) => {
             if (!str) return "";
             return String(str)
@@ -266,49 +267,58 @@ const StandardGame = (props) => {
                 .trim();
         };
 
+        const cleanTableurInput = (str) => {
+            return String(str).toLowerCase().replace(/\s+/g, '');
+        };
+
+        // --- 2. PRÉPARATION ---
         const rawUser = normalize(userAnswer);
-        const rawCorrect = normalize(questionData.correct);
-
-        // Version sans espaces pour la comparaison textuelle stricte
-        const cleanUserText = rawUser.replace(/\s+/g, '').toLowerCase();
-        const cleanCorrectText = rawCorrect.replace(/\s+/g, '').toLowerCase();
-
-        console.log(`Validation : "${cleanUserText}" vs "${cleanCorrectText}"`);
-
         let isCorrect = false;
 
-        // --- 2. VALIDATION TEXTUELLE (Prioritaire & Rapide) ---
-        // Si l'élève a écrit exactement ce qu'on attendait (ex: "x+1")
-        if (cleanUserText === cleanCorrectText) {
+        // --- 3. LOGIQUE DE VALIDATION EN CASCADE ---
+
+        // A. CAS TABLEUR (Liste de réponses acceptées)
+        if (questionData.accepted_answers && Array.isArray(questionData.accepted_answers)) {
+            const userClean = cleanTableurInput(userAnswer);
+
+            // On vérifie si l'entrée correspond à l'une des réponses acceptées
+            const match = questionData.accepted_answers.some(ans =>
+                cleanTableurInput(ans) === userClean
+            );
+
+            if (match) {
+                isCorrect = true;
+            }
+        }
+
+        // B. CAS STRICT (Comparaison de texte simple nettoyé)
+        else if (normalize(userAnswer).replace(/\s+/g, '').toLowerCase() === normalize(questionData.correct).replace(/\s+/g, '').toLowerCase()) {
             isCorrect = true;
         }
 
-        // --- 3. VALIDATION MATHÉMATIQUE (Algèbre & Fractions) ---
-        // Gère l'ordre (x+1 = 1+x) et les calculs (5/2 = 2.5)
+        // C. CAS MATHÉMATIQUE (MathJS - Algèbre, Fractions, Calculs)
         else {
             try {
-                // Portée élargie pour couvrir toutes les lettres possibles dans tes exos
-                const scope = {
-                    x: 11.123, y: 11.123, z: 11.123,
-                    a: 11.123, b: 11.123, c: 11.123,
-                    k: 11.123, n: 11.123, m: 11.123,
-                    t: 11.123, u: 11.123, v: 11.123
-                };
+                // On n'utilise MathJS QUE si ce n'est PAS une formule Excel (qui commence par =)
+                if (!String(userAnswer).trim().startsWith('=')) {
+                    // Portée élargie pour couvrir toutes les variables possibles (fusion des anciens codes)
+                    const scope = {
+                        x: 11.123, y: 11.123, z: 11.123,
+                        a: 11.123, b: 11.123, c: 11.123,
+                        k: 11.123, n: 11.123, m: 11.123,
+                        t: 11.123, u: 11.123, v: 11.123
+                    };
 
-                // On évalue les deux expressions mathématiquement
-                // Cela transforme "5/2" en 2.5 et "x+x" en 22.246
-                const valUser = math.evaluate(rawUser, scope);
-                const valCorrect = math.evaluate(rawCorrect, scope);
+                    const valUser = math.evaluate(rawUser, scope);
+                    const valCorrect = math.evaluate(normalize(questionData.correct), scope);
 
-                // Comparaison avec tolérance (0.0001) pour les flottants
-                if (Math.abs(valUser - valCorrect) < 0.0001) {
-                    isCorrect = true;
-                    console.log("Validation mathématique réussie !");
+                    // Comparaison avec tolérance epsilon pour les nombres flottants
+                    if (Math.abs(valUser - valCorrect) < 0.0001) {
+                        isCorrect = true;
+                    }
                 }
             } catch (e) {
-                // Si l'élève écrit une syntaxe invalide (ex: "x++2" ou "3..5")
-                // math.evaluate plante, on ignore et isCorrect reste false.
-                console.log("Syntaxe mathématique invalide :", e.message);
+                // Ignorer les erreurs de syntaxe mathématique (ex: l'élève tape "x++")
             }
         }
 
@@ -874,6 +884,51 @@ const StandardGame = (props) => {
                 title={<MathText text={questionData.question} />} // On passe le titre
             >
 
+                {/* ========================================================= */}
+                {/* AJOUT TABLEUR (VISUALISATION)                   */}
+                {/* ========================================================= */}
+                {questionData.table_data && (
+                    <div className="flex justify-center mb-6 overflow-x-auto animate-in fade-in slide-in-from-bottom-4">
+                        <div className="border border-slate-300 rounded-lg shadow-sm bg-white inline-block min-w-[300px] select-none">
+                            {/* 1. En-têtes de colonnes (A, B, C...) */}
+                            <div className="flex bg-slate-100 border-b border-slate-300">
+                                {/* Coin vide en haut à gauche */}
+                                <div className="w-10 border-r border-slate-300 bg-slate-200"></div>
+
+                                {questionData.table_data.headers.map((colName, i) => (
+                                    <div key={i} className="flex-1 px-4 py-1 text-center text-xs font-bold text-slate-600 border-r border-slate-300 last:border-0 uppercase bg-slate-100">
+                                        {String.fromCharCode(65 + i)} {/* A, B, C... */}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 2. Les Lignes */}
+                            {questionData.table_data.rows.map((row, rowIndex) => (
+                                <div key={rowIndex} className="flex border-b border-slate-200 last:border-0">
+                                    {/* Numéro de ligne (1, 2, 3...) */}
+                                    <div className="w-10 bg-slate-100 border-r border-slate-300 flex items-center justify-center text-xs font-bold text-slate-500">
+                                        {rowIndex + 1}
+                                    </div>
+
+                                    {/* Les Cellules */}
+                                    {row.map((cell, cellIndex) => (
+                                        <div key={cellIndex} className="flex-1 px-4 py-3 text-center text-slate-800 font-mono text-sm border-r border-slate-100 last:border-0 flex items-center justify-center min-w-[80px]">
+                                            {/* Si la cellule est '?', on la met en valeur */}
+                                            {cell === '?' ? (
+                                                <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded font-bold border-2 border-indigo-200 animate-pulse">?</span>
+                                            ) : (
+                                                /* Si c'est un header texte (première ligne de données souvent), on le met en gras */
+                                                <span className={rowIndex === 0 && cellIndex === 0 ? "font-bold text-slate-900" : ""}>{cell}</span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {/* ========================================================= */}
+
                 {questionData.responseType === 'QCM' ? (
                     // ... Code du QCM existant ...
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
@@ -1012,19 +1067,11 @@ const StandardGame = (props) => {
     return <LegacyStandardGame {...props} />;
 };
 
-// =========================================================
 // 2. VOTRE ANCIEN CODE (Juste renommé)
-// =========================================================
-
 const LegacyStandardGame = ({ user, config, onFinish, onBack, onSound }) => {
 
     const { questionData, regenerate } = useMathGenerator(config.id, config.level);
-
-    // Si le hook a réussi à générer une question, on affiche l'interface DYNAMIQUE
     if (questionData) {
-
-        // C'est ici qu'on redirigera plus tard vers vos vrais composants visuels (PythagoreSystem)
-        // Pour l'instant, on affiche un écran de DEBUG pour vérifier que les calculs sont bons.
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
                 <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border-2 border-indigo-100">
@@ -1049,7 +1096,6 @@ const LegacyStandardGame = ({ user, config, onFinish, onBack, onSound }) => {
                             {JSON.stringify(questionData.visualConfig, null, 2)}
                         </div>
                     </div>
-
                     <button
                         onClick={regenerate}
                         className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 hover:-translate-y-1 mb-3"
@@ -1069,8 +1115,6 @@ const LegacyStandardGame = ({ user, config, onFinish, onBack, onSound }) => {
 
     // =========================================================
     // A. ROUTAGE VERS MOTEURS SPÉCIAUX (VISUELS)
-    // =========================================================
-    // Si le mapping renvoie une "String", c'est un moteur spécial
     if (mappedConfig === 'ENGINE_PYTHAGORE') {
         return <div className="min-h-screen bg-slate-50 relative pt-10"><ExercicePythagore user={user} level={config.level} onFinish={onFinish} onQuit={onBack} onSound={onSound} /></div>;
     }
@@ -1082,6 +1126,9 @@ const LegacyStandardGame = ({ user, config, onFinish, onBack, onSound }) => {
     }
     if (mappedConfig === 'ENGINE_TABLE_CURVE') {
         return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceTableauValeursCourbe user={user} level={config.level} onFinish={(s) => onFinish(s)} onQuit={onBack} onSound={onSound} /></div>;
+    }
+    if (mappedConfig === 'ENGINE_TRIGO') {
+        return <div className="min-h-screen bg-slate-50 relative pt-10"><ExerciceTrigo user={user} level={config.level} onFinish={onFinish} onBack={onBack} onSound={onSound} /></div>;
     }
 
     // =========================================================

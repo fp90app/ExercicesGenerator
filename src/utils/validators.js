@@ -166,6 +166,12 @@ const LevelSchema = z.object({
     response_type: z.enum(["NUMERIC", "QCM", "TEXT", "MATH_KEYBOARD"]).optional(),
     correct_answer: z.string(), // Formule MathJS ou texte
 
+    accepted_answers: z.array(z.string()).optional(),
+    table_data: z.object({
+        headers: z.array(z.string()),
+        rows: z.array(z.array(z.union([z.string(), z.number()])))
+    }).optional(),
+
     // ✅ CORRECTION 2 : On accepte soit des Strings (ancien format), soit des Objets (nouveau format avec isCorrect)
     qcm_options: z.array(
         z.union([

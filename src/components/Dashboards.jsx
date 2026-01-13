@@ -9,6 +9,7 @@ import { usePremium } from '../hooks/usePremium';
 import { toast } from 'react-hot-toast';
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal, LoadingScreen, PremiumModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST } from '../utils/data';
+import CoursesView from './CoursesView';
 // --- UTILITAIRES COULEURS ---
 const getLevelColor = (count) => {
     if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
@@ -557,6 +558,14 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 {activeTab === 'HOME' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 fade-in">
 
+                        <MenuCard
+                            icon="books"
+                            title="Cours & Documents"
+                            desc="Fiches de révision, PDF et corrections."
+                            color="emerald"
+                            onClick={() => setActiveTab('COURS')}
+                            footer="Documents classés par chapitre"
+                        />
                         <MenuCard icon="lightning" title="Automatismes" desc="Les 40 thèmes du brevet." color="indigo" onClick={() => setActiveTab('AUTOMATISMES')} footer={() => { const count = user.data.training ? Object.keys(user.data.training).length : 0; const label = count > 1 ? "notions" : "notion"; return count > 0 ? `${count} ${label}` : "Aucun exercice"; }} />
                         <MenuCard icon="graduation-cap" title="Brevet" desc="Sujets complets" color="emerald" onClick={() => setActiveTab('BREVET')} footer="Annales officielles" />
                         <MenuCard icon="grid-four" title="Tables" desc="Multiplications et divisions." color="amber" onClick={() => setActiveTab('TABLES')} footer={user.data.best_grand_slam && user.data.best_grand_slam < 999 ? `Record : ${parseFloat(user.data.best_grand_slam).toFixed(2)}s` : "Pas de chrono"} />
@@ -566,6 +575,19 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
 
                 {activeTab === 'TABLES' && <TablesView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} onSound={onSound} />}
 
+                {activeTab === 'COURS' && (
+                    <div className="fade-in">
+                        <button
+                            onClick={() => setActiveTab('HOME')}
+                            className="mb-4 text-sm font-bold text-slate-400 flex items-center gap-1 hover:text-indigo-600 transition-colors"
+                        >
+                            <Icon name="arrow-left" /> Retour à l'accueil
+                        </button>
+
+                        {/* On appelle ton composant ici */}
+                        <CoursesView userClass={user.data?.classe} />
+                    </div>
+                )}
                 {activeTab === 'AUTOMATISMES' && (
                     <div className="fade-in space-y-4">
                         <button onClick={() => setActiveTab('HOME')} className="mb-2 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
@@ -742,7 +764,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 <PremiumModal
                     onClose={() => setShowPremiumModal(false)}
                     onSubscribe={() => {
-                        // 1. Récupération de l'ID Élève
+                        // 1. On récupère l'ID de l'élève
                         const userId = user.data?.id || user.id;
 
                         if (!userId) {
@@ -750,17 +772,18 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                             return;
                         }
 
-                        // 2. Lien Stripe (Remplacez par votre VRAI lien "Buy Button" Stripe)
-                        // ex: https://buy.stripe.com/test_...
+                        // 2. Ton lien Stripe DIRECT (C'est celui de ton premier fichier)
                         const stripeUrl = "https://buy.stripe.com/test_3cIfZa04G4u538Ccy657W00";
 
-                        // 3. Construction de l'URL avec le paramètre magique
-                        // 'client_reference_id' est le champ officiel de Stripe pour stocker un ID externe
+                        // 3. On ajoute l'ID à la fin pour le repérage
                         const separator = stripeUrl.includes('?') ? '&' : '?';
                         const finalUrl = `${stripeUrl}${separator}client_reference_id=${userId}`;
 
-                        // 4. Ouverture
+                        // 4. On ouvre simplement la page (Pas d'erreur 401 possible ici)
                         window.open(finalUrl, "_blank");
+
+                        // On ferme la modale
+                        setShowPremiumModal(false);
                     }}
                 />
             )}

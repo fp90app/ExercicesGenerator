@@ -16,6 +16,7 @@ import { parseAndValidateExercise } from '../utils/validators';
 
 // NOTE : On retire l'import de AUTOMATISMES_DATA car on passe en mode Dynamique !
 import { AUTOMATISMES_DATA } from '../utils/data'; // Gardé uniquement pour la migration de secours
+import CoursesAdmin from './CoursesAdmin';
 
 // Ajoutez mathjs pour calculer l'aperçu en direct
 import * as math from 'mathjs';
@@ -693,6 +694,16 @@ const AdminPanel = ({ user, onBack }) => {
                     <TabButton id="CONFIG" label="Config" icon="gear" />
                     <TabButton id="LIST" label="Brevets" icon="list-dashes" />
                     <button
+                        onClick={() => setActiveTab('COURSES')}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'COURSES' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                    >
+                        <div className={`p-1.5 rounded-md ${activeTab === 'COURSES' ? 'bg-white shadow-sm text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                            <Icon name="books" size={18} />
+                        </div>
+                        Gestion des Cours
+                    </button>
+                    <button
                         onClick={() => setActiveTab('MESSAGES')}
                         className={`px-4 py-2 rounded-lg font-bold transition-all ${activeTab === 'MESSAGES' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                     >
@@ -969,6 +980,8 @@ const AdminPanel = ({ user, onBack }) => {
                             )}
                         </div>
                     )}
+
+
 
                     {/* --- TAB: GESTION DU CONTENU (CMS ACTIF) --- */}
                     {activeTab === 'CONTENT' && (
@@ -1412,7 +1425,7 @@ const AdminPanel = ({ user, onBack }) => {
                             </div>
                         </div>
                     )}
-
+                    {activeTab === 'COURSES' && <CoursesAdmin />}
                 </div>
             </div>
         </div>

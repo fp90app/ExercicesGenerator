@@ -1,0 +1,43 @@
+{
+    "output": {
+        "style": "xml",
+        "filePath": "repomix-output.xml",
+        "removeComments": false,
+        "removeEmptyLines": true,
+        "topFilesLength": 5
+    },
+    "ignore": {
+        "useGitignore": true,
+        "useDefaultPatterns": true,
+        "customPatterns": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/out/**",
+            "**/coverage/**",
+            "**/.git/**",
+            "**/.firebase/**",
+            "**/.vscode/**",
+            "**/.idea/**",
+            "**/.DS_Store",
+            "**/package-lock.json",
+            "**/yarn.lock",
+            "**/pnpm-lock.yaml",
+            "**/bun.lockb",
+            "repomix-output.xml",
+            "repomix-output.txt",
+            "repomix-output.json",
+            "**/*.png",
+            "**/*.jpg",
+            "**/*.jpeg",
+            "**/*.gif",
+            "**/*.svg",
+            "**/*.ico",
+            "**/*.pdf",
+            "**/*.mp4",
+            "**/*.mp3",
+            "kit_trigo.txt",
+            "mon_code.txt"
+        ]
+    }
+}

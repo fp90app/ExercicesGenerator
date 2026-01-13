@@ -68,7 +68,7 @@ export const AUTOMATISMES_DATA = [
             { id: "auto_30_frequence", title: "Fréquences" },
             { id: "auto_31_moyenne", title: "Moyenne" },
             { id: "auto_32_mediane", title: "Médiane" },
-            { id: "auto_33_lecture_graphique", title: "Lecture de données" }
+            { id: "auto_33_lecture_graphique", title: "Lecture de données" },
         ]
     },
     {

@@ -27,6 +27,8 @@ import ExerciceLectureGraphique from './components/ExerciceLectureGraphique.jsx'
 import ExerciceTableauValeursCourbe from './components/games/ExerciceTableauValeursCourbe.jsx';
 import ExerciceThales from './components/games/ExerciceThales';
 import ExercicePythagore from './components/games/ExercicePythagore';
+import ExerciceDataReading from './components/ExerciceDataReading';
+import ExerciceTrigo from './components/games/ExerciceTrigo';
 
 // --- DONNÉES ---
 import { BREVET_DATA } from './utils/brevetData.js';
@@ -61,24 +63,64 @@ export default function App() {
     }
   }, [user]);
 
+  const [paymentDetected, setPaymentDetected] = useState(false);
+
   useEffect(() => {
-    // On vérifie si l'URL contient "?payment_success=true"
+    // 1. Détection immédiate du paramètre dans l'URL
     const params = new URLSearchParams(window.location.search);
-
     if (params.get('payment_success')) {
-      // 1. On joue le son de victoire
-      playSound('WIN');
-
-      // 2. On affiche un message (tu pourras faire une belle modale plus tard)
-      alert("🎉 Félicitations ! Ton compte est maintenant PREMIUM !\n\nProfite de l'accès illimité à tous les contenus.");
-
-      // 3. On nettoie l'URL pour ne pas réafficher le message si on rafraîchit la page
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // 4. Force le rechargement de l'utilisateur pour être sûr que le statut Premium est à jour localement
-      window.location.reload();
+      console.log("💳 Paiement détecté dans l'URL !");
+      setPaymentDetected(true);
     }
-  }, []);
+  }, []); // Ne s'exécute qu'une fois au montage
+
+  useEffect(() => {
+    // 1. On vérifie d'abord si le paramètre est présent dans l'URL
+    const params = new URLSearchParams(window.location.search);
+    const isPaymentSuccess = params.get('payment_success');
+
+    // 2. Si on a le paramètre MAIS que l'user n'est pas encore chargé, on ne fait rien (on attend le prochain rendu)
+    if (isPaymentSuccess && (!user || !user.data)) {
+      console.log("⏳ Paiement détecté, attente du chargement utilisateur...");
+      return;
+    }
+
+    // 3. Si tout est prêt
+    if (isPaymentSuccess && user && user.data) {
+      console.log("💳 Validation du paiement en cours...");
+
+      const activatePremium = async () => {
+        try {
+          // A. Mise à jour Firestore
+          const userRef = doc(db, "eleves", user.data.id);
+          await updateDoc(userRef, {
+            status: 'premium'
+          });
+
+          // B. Mise à jour Locale (Immédiate)
+          const updatedUser = { ...user };
+          updatedUser.data.status = 'premium';
+          setUser(updatedUser);
+
+          // C. Notification
+          playSound('WIN');
+          toast.success("Statut Premium activé ! Bienvenue au club 👑", {
+            duration: 5000,
+            style: { border: '2px solid #10b981', padding: '16px', color: '#064e3b' },
+          });
+
+          // D. Nettoyage de l'URL (Important pour ne pas re-déclencher)
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+        } catch (error) {
+          console.error("❌ Erreur activation :", error);
+          toast.error("Erreur d'activation. Contacte-nous.");
+        }
+      };
+
+      activatePremium();
+    }
+  }, [user]);
 
   const triggerSound = (type) => {
     playSound(type, muted);
@@ -355,6 +397,14 @@ export default function App() {
                 onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
                 onSound={triggerSound}
               />
+            ) : gameConfig.id === 'auto_33_lecture_graphique' ? (
+              <ExerciceDataReading
+                user={user}
+                level={gameConfig.level}
+                onFinish={handleFinish}
+                onQuit={() => { setView('DASHBOARD'); setGameConfig(null); }}
+                onSound={triggerSound}
+              />
             ) : (
               <Game
                 user={user}
@@ -365,6 +415,12 @@ export default function App() {
                 onSound={triggerSound}
               />
             )
+          )}
+
+          {view === 'TRIGO' && (
+            <ExerciceTrigo
+              onBack={() => setView('DASHBOARD')}
+            />
           )}
 
           {view === 'SURVIVAL_GAME' && (
