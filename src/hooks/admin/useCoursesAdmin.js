@@ -12,7 +12,6 @@ export const useCoursesAdmin = () => {
     const [loading, setLoading] = useState(false);
     const [allClassesConfig, setAllClassesConfig] = useState({});
 
-    // --- NOUVEAU : État pour la modale de confirmation ---
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
 
     // États UI et formulaires
@@ -24,6 +23,7 @@ export const useCoursesAdmin = () => {
     const [expandedChapter, setExpandedChapter] = useState(null);
     const [docs, setDocs] = useState({});
     const [uploading, setUploading] = useState(false);
+
     const [showDocForm, setShowDocForm] = useState(null);
     const [editingDoc, setEditingDoc] = useState(null);
     const [docFiles, setDocFiles] = useState([]);
@@ -82,6 +82,7 @@ export const useCoursesAdmin = () => {
         const className = newClassInput.trim().toUpperCase();
         const currentClasses = allClassesConfig[selectedLevel] || [];
         if (currentClasses.includes(className)) return toast.error("Existe déjà !");
+
         const newConfig = { ...allClassesConfig, [selectedLevel]: [...currentClasses, className].sort() };
         try {
             await setDoc(doc(db, "config", "courses"), newConfig);
@@ -91,7 +92,6 @@ export const useCoursesAdmin = () => {
         } catch (e) { toast.error("Erreur sauvegarde config"); }
     };
 
-    // --- MODIFIÉ : Utilise la modale custom ---
     const handleDeleteClass = (cls) => {
         setConfirmDialog({
             isOpen: true,
@@ -135,7 +135,6 @@ export const useCoursesAdmin = () => {
         } catch (e) { toast.error("Erreur chapitre"); }
     };
 
-    // --- MODIFIÉ : Utilise la modale custom ---
     const handleDeleteChapter = (chapter) => {
         setConfirmDialog({
             isOpen: true,
@@ -162,6 +161,7 @@ export const useCoursesAdmin = () => {
         newChapters[index] = newChapters[index + direction];
         newChapters[index + direction] = temp;
         setChapters(newChapters);
+
         try {
             const batch = writeBatch(db);
             newChapters.forEach((c, idx) => batch.update(doc(db, "courses_chapters", c.id), { order: idx + 1 }));
@@ -177,6 +177,7 @@ export const useCoursesAdmin = () => {
         newDocs[docIndex] = newDocs[docIndex + direction];
         newDocs[docIndex + direction] = temp;
         setDocs(prev => ({ ...prev, [chapterId]: newDocs }));
+
         try {
             const batch = writeBatch(db);
             newDocs.forEach((d, idx) => {
@@ -222,6 +223,9 @@ export const useCoursesAdmin = () => {
     const handleSaveDoc = async (chapterId) => {
         if (docType === 'LINK' && !docUrl) return toast.error("URL manquante");
 
+        // Sécurisation du nom de niveau pour le dossier Firebase (ex: "3ème" devient "3eme")
+        const safeLevel = selectedLevel.replace('è', 'e').replace('é', 'e');
+
         if (editingDoc || docType === 'LINK' || (docType === 'FILE' && docFiles.length <= 1)) {
             let fileToUpload = docFiles[0];
             if (docType === 'FILE' && !fileToUpload && !editingDoc) return toast.error("Choisis un fichier");
@@ -238,9 +242,11 @@ export const useCoursesAdmin = () => {
 
                 if (docType === 'FILE' && fileToUpload) {
                     if (editingDoc?.storagePath) await deleteObject(ref(storage, editingDoc.storagePath)).catch(() => { });
+
                     const ext = fileToUpload.name.split('.').pop();
                     const fileName = `${Date.now()}_${finalTitle.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
-                    const fileRef = ref(storage, `courses/${selectedLevel}/${chapterId}/${fileName}`);
+                    const fileRef = ref(storage, `courses/${safeLevel}/${chapterId}/${fileName}`);
+
                     const snapshot = await uploadBytes(fileRef, fileToUpload);
                     downloadUrl = await getDownloadURL(snapshot.ref);
                     storagePath = snapshot.ref.fullPath;
@@ -266,9 +272,12 @@ export const useCoursesAdmin = () => {
                     await addDoc(collection(db, "courses_docs"), { ...docData, order: nextOrder, createdAt: serverTimestamp() });
                     toast.success("Ajouté !");
                 }
+
                 setShowDocForm(null); fetchDocs(chapterId);
             } catch (e) { toast.error(e.message); } finally { setUploading(false); }
+
         } else {
+            // Upload multiple
             setUploading(true);
             try {
                 const currentDocs = docs[chapterId] || [];
@@ -280,8 +289,8 @@ export const useCoursesAdmin = () => {
                     const ext = file.name.split('.').pop();
                     const safeName = autoTitle.replace(/[^a-z0-9]/gi, '_');
                     const fileName = `${Date.now()}_${i}_${safeName}.${ext}`;
+                    const fileRef = ref(storage, `courses/${safeLevel}/${chapterId}/${fileName}`);
 
-                    const fileRef = ref(storage, `courses/${selectedLevel}/${chapterId}/${fileName}`);
                     const snapshot = await uploadBytes(fileRef, file);
                     const downloadUrl = await getDownloadURL(snapshot.ref);
 
@@ -309,7 +318,6 @@ export const useCoursesAdmin = () => {
         }
     };
 
-    // --- MODIFIÉ : Utilise la modale custom ---
     const handleDeleteDoc = (docData) => {
         setConfirmDialog({
             isOpen: true,
@@ -354,10 +362,7 @@ export const useCoursesAdmin = () => {
         docType, setDocType,
         docUrl, setDocUrl,
         selectedClasses, setSelectedClasses,
-
-        // --- NOUVEAU : Exporter les états de la modale ---
         confirmDialog, setConfirmDialog,
-
         groupedChapters, currentClasses,
         fetchClassesConfig, fetchChapters, fetchDocs, toggleChapter,
         handleAddClass, handleDeleteClass, handleSaveChapter, handleDeleteChapter,
