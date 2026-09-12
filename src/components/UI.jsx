@@ -1,6 +1,7 @@
 import React from 'react';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { toast } from 'react-hot-toast';
+
 // On importe TOUTES les icônes d'un coup
 import * as PhosphorIcons from '@phosphor-icons/react';
 
@@ -96,28 +97,26 @@ export const LegendBox = ({ icon, color, text }) => (
     </div>
 );
 
+// --- NOUVELLE EN-TÊTE ÉPURÉE ET PROFESSIONNELLE ---
 export const SchoolHeader = () => (
-    <div className="relative bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-6 mb-8 shadow-sm overflow-hidden border border-purple-100">
-        <div className="absolute inset-0 pointer-events-none font-serif italic text-purple-200 select-none z-0 opacity-30">
-            <span className="absolute top-4 left-16 text-3xl">√x</span>
-            <span className="absolute bottom-10 left-28 text-4xl">≈</span>
-            <span className="absolute top-1/4 left-1/3 text-2xl">Δ</span>
-            <span className="absolute bottom-6 right-[30%] text-2xl">α</span>
+    <div className="bg-white rounded-2xl p-6 md:p-8 mb-8 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-200 shrink-0">
+            <Icon name="calculator" className="text-3xl text-slate-700" weight="fill" />
         </div>
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-5">
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center border border-purple-100 shadow-sm shrink-0">
-                    <Icon name="graduation-cap" className="text-4xl text-purple-600" />
-                </div>
-                <div className="text-center md:text-left">
-                    <div className="text-xs font-bold text-purple-400 tracking-widest uppercase mb-1 flex items-center justify-center md:justify-start gap-1">
-                        <Icon name="map-pin" weight="fill" size={12} /> Belfort
-                    </div>
-                    <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-800 leading-none">
-                        COLLÈGE <span className="text-purple-600">SIMONE SIGNORET</span>
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-1 font-medium">Espace d'entraînement aux mathématiques</p>
-                </div>
+        <div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-800 mb-2">
+                Cours de Mathématiques
+            </h1>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 text-slate-600 font-medium text-sm md:text-base">
+                <span className="flex items-center justify-center md:justify-start gap-1.5">
+                    <Icon name="graduation-cap" weight="fill" className="text-slate-400" />
+                    Collège Simone SIGNORET (BELFORT)
+                </span>
+                <span className="hidden md:inline text-slate-300">|</span>
+                <span className="flex items-center justify-center md:justify-start gap-1.5">
+                    <Icon name="chalkboard-teacher" weight="fill" className="text-slate-400" />
+                    Professeur : M. PUTOD
+                </span>
             </div>
         </div>
     </div>
@@ -133,7 +132,6 @@ export const XPHelpModal = ({ onClose }) => (
             </div>
 
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-
                 {/* TABLES */}
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
                     <div className="flex items-center gap-4 mb-3">
@@ -143,12 +141,9 @@ export const XPHelpModal = ({ onClose }) => (
                             <div className="font-bold text-amber-600">+10 XP <span className="text-slate-400 font-normal">/ validation</span></div>
                         </div>
                     </div>
-
                     <div className="text-xs text-slate-500 mb-2">
                         Tu gagnes des points jusqu'à 3 réussites <b>lors de la première validation</b> (pas par jour).
                     </div>
-
-
                 </div>
 
                 {/* NOUVEAU : DÉFI TOUTES LES TABLES */}
@@ -170,7 +165,6 @@ export const XPHelpModal = ({ onClose }) => (
                             <span>Niveau 2 : +20 XP (×3)</span>
                             <span>Niveau 3 : +30 XP (×3)</span>
                         </div>
-
                     </div>
                     {/* VISUEL DES ÉTATS */}
                     <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-100">
@@ -197,12 +191,7 @@ export const XPHelpModal = ({ onClose }) => (
                             <span className="text-[9px] uppercase font-bold text-emerald-600">Max</span>
                         </div>
                     </div>
-
-
-
-
                 </div>
-
 
                 {/* QUÊTES */}
                 <div className="flex items-center gap-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -213,12 +202,11 @@ export const XPHelpModal = ({ onClose }) => (
                             <span>Tables quête du jour : +10 XP</span>
                             <span>Série complète (Flamme) : +20 XP</span>
                             <span>Automatisme du jour (au choix) : +20 / +30 / +50 XP en fonction du niveau choisi.</span>
-
                         </div>
                     </div>
                 </div>
-
             </div>
+
             <div className="p-4 border-t bg-slate-50 text-center">
                 <button onClick={onClose} className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform">Compris !</button>
             </div>
@@ -231,13 +219,11 @@ export const LoadingScreen = ({ message = "Chargement..." }) => (
         <div className="relative">
             {/* Cercle animé extérieur */}
             <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-
             {/* Icône centrale statique ou pulsante */}
             <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center animate-pulse">
                 <Icon name="lightning" weight="fill" className="text-indigo-600 text-xl" />
             </div>
         </div>
-
         <h2 className="mt-6 text-slate-800 font-bold text-lg tracking-tight animate-pulse">
             {message}
         </h2>
@@ -246,13 +232,9 @@ export const LoadingScreen = ({ message = "Chargement..." }) => (
 );
 
 export const PremiumModal = ({ onClose, onSubscribe }) => {
-    // J'ai retiré la fonction handleSubscribe qui causait l'erreur 401.
-    // Le composant est maintenant "propre" et utilise l'action passée par Dashboards.jsx.
-
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
             <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-
                 {/* Header Gold */}
                 <div className="bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 p-6 text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
@@ -261,6 +243,7 @@ export const PremiumModal = ({ onClose, onSubscribe }) => {
                         <h2 className="text-3xl font-black text-white drop-shadow-sm uppercase tracking-wider">Devenir Premium</h2>
                         <p className="text-amber-900 font-bold text-sm opacity-90">Débloque ton plein potentiel pour le Brevet</p>
                     </div>
+
                     <button
                         onClick={onClose}
                         className="absolute top-4 right-4 p-2 text-white/70 hover:text-white transition-all rounded-full hover:bg-black/10 flex items-center justify-center z-20"
@@ -271,7 +254,6 @@ export const PremiumModal = ({ onClose, onSubscribe }) => {
 
                 {/* Corps de l'offre */}
                 <div className="p-6 md:p-8 bg-white">
-
                     {/* Comparatif */}
                     <div className="space-y-4 mb-8">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -281,7 +263,6 @@ export const PremiumModal = ({ onClose, onSubscribe }) => {
                                 <span className="text-amber-500">Premium</span>
                             </div>
                         </div>
-
                         <div className="flex items-center justify-between">
                             <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="infinity" className="text-indigo-500" /> Accès illimité (Brevets)</span>
                             <div className="flex gap-8">
@@ -289,7 +270,6 @@ export const PremiumModal = ({ onClose, onSubscribe }) => {
                                 <Icon name="check" className="text-emerald-500" weight="bold" />
                             </div>
                         </div>
-
                         <div className="flex items-center justify-between">
                             <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="chart-line-up" className="text-blue-500" /> Statistiques avancées</span>
                             <div className="flex gap-8">
@@ -297,7 +277,6 @@ export const PremiumModal = ({ onClose, onSubscribe }) => {
                                 <Icon name="check" className="text-emerald-500" weight="bold" />
                             </div>
                         </div>
-
                         <div className="flex items-center justify-between">
                             <span className="text-slate-700 font-bold flex items-center gap-2"><Icon name="medal" className="text-purple-500" /> Mode Survie & Classements</span>
                             <div className="flex gap-8">

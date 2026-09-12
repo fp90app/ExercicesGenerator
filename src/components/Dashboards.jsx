@@ -10,6 +10,8 @@ import { toast } from 'react-hot-toast';
 import { Icon, Leaderboard, LegendBox, SchoolHeader, XPHelpModal, LoadingScreen, PremiumModal } from './UI';
 import { AUTOMATISMES_DATA, TABLES_LIST } from '../utils/data';
 import CoursesView from './CoursesView';
+import SkillsView from './SkillsView'; // NOUVEAU
+
 // --- UTILITAIRES COULEURS ---
 const getLevelColor = (count) => {
     if (count >= 3) return "bg-emerald-600 text-white border-emerald-700 shadow-sm";
@@ -20,7 +22,6 @@ const getLevelColor = (count) => {
 
 const NewsBanner = () => {
     const [news, setNews] = useState(null);
-
     useEffect(() => {
         const fetchNews = async () => {
             try {
@@ -68,8 +69,10 @@ const NewsBanner = () => {
 // ============================================================================
 export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
     if (!daily || !daily.q1) return null;
+
     const allFinished = daily.completed;
     const containerStyle = allFinished ? "bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 shadow-md" : "bg-white border-2 border-slate-100 shadow-sm";
+
     return (
         <div className={`rounded-2xl p-6 mb-8 relative overflow-hidden pop-in transition-all ${containerStyle}`}>
             <div className="flex justify-between items-center mb-6 relative z-10">
@@ -81,6 +84,7 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
                     <div className="flex items-center gap-1"><Icon name="fire" weight="fill" className={`text-xl ${allFinished ? 'animate-bounce' : 'animate-pulse'}`} /><span className="font-black text-lg leading-none mt-0.5">{daily.streak}</span></div>
                 </div>
             </div>
+
             <div className="space-y-4 relative z-10">
                 <div className={`p-4 rounded-xl border ${daily.q1.done ? 'bg-purple-50 border-purple-200' : 'bg-slate-50 border-slate-200'}`}>
                     <div className="flex justify-between items-center mb-3">
@@ -94,6 +98,7 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
                             const btnClass = isDone ? "bg-purple-200 text-purple-800 shadow-sm scale-105 ring-1 ring-purple-300 border-purple-200" : "bg-white text-slate-600 border-2 border-slate-200 hover:border-indigo-300 hover:text-indigo-600";
                             const label = target.type === 'TABLES' ? `Table de ${target.val}` : `Div. par ${target.val}`;
                             const icon = target.type === 'TABLES' ? "x" : "divide";
+
                             return (
                                 <button key={idx} onClick={() => onPlay(target.type, target.val)} className={`relative flex-1 text-center py-3 rounded-xl text-sm font-bold transition-all active:scale-95 overflow-visible flex flex-col items-center justify-center gap-1 ${btnClass}`}>
                                     {isDone && (<div className="absolute -top-3 -right-2 text-purple-600 bg-white rounded-full drop-shadow-sm z-30"><Icon name="check-circle" weight="fill" className="text-2xl" /></div>)}
@@ -104,6 +109,7 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
                         })}
                     </div>
                 </div>
+
                 <div onClick={onGoToAuto} className={`p-4 rounded-xl border transition-all relative cursor-pointer group flex items-center justify-between shadow-sm ${daily.q2.done ? "bg-purple-50 border-purple-200" : "bg-slate-50 border-slate-200 hover:border-indigo-300 hover:bg-white"}`}>
                     <div className="flex flex-col relative z-10">
                         <span className={`font-bold text-sm flex items-center gap-2 ${daily.q2.done ? 'text-purple-800' : 'text-slate-700'}`}><Icon name="lightning" weight={daily.q2.done ? "fill" : "regular"} className={daily.q2.done ? "text-purple-600" : "text-slate-400"} /> Fais un automatisme</span>
@@ -120,6 +126,7 @@ export const DailyQuestsWidget = ({ daily, onPlay, onGoToAuto }) => {
 // SURVIVAL VIEW (Inchangé)
 // ============================================================================
 export const SurvivalView = ({ user, onPlay, onBack }) => {
+
     const getMyHistory = (mode) => {
         let myRaw = user.data.survival_history?.[mode];
         let myArr = Array.isArray(myRaw) ? myRaw : (typeof myRaw === 'number' ? [myRaw] : []);
@@ -144,6 +151,7 @@ export const SurvivalView = ({ user, onPlay, onBack }) => {
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
             <h2 className="text-2xl font-black text-slate-800 mb-2">Mode Survie</h2>
             <LegendBox icon="trophy" color="red" text="Mode Défi : Battes ton propre record !" />
+
             <div className="grid md:grid-cols-3 gap-6">
                 {modeCards.map(m => (
                     <div key={m.id} className="flex flex-col gap-4">
@@ -184,10 +192,12 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
     return (
         <div className="fade-in pb-12">
             <button onClick={onBack} className="mb-4 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
+
             <div className="grid lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm col-span-1 lg:col-span-2">
                     <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="grid-four" className="text-amber-500" /> I. Entrainement Ciblé</h3>
                     <LegendBox icon="infinity" color="purple" text="20 points chaque jour pour les tables et les mélanges de divisions" />
+
                     <div className="grid md:grid-cols-2 gap-4 mb-6">
                         <button onClick={() => onPlay('TABLES_ALL', null)} className={`p-4 rounded-xl border-2 flex justify-between items-center transition-all group text-left ${isDailyDone('allTablesDate') ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-white border-purple-100 hover:border-purple-400 hover:shadow-md'}`}>
                             <div><div className="font-bold text-lg">Toutes les tables (×)</div><div className="text-xs opacity-70">Mélange 2 à 12 • 20 XP</div></div>
@@ -198,6 +208,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                             {isDailyDone('allDivisionsDate') ? <Icon name="check-circle" className="text-2xl text-cyan-600" /> : <Icon name="play-circle" className="text-2xl text-cyan-300 group-hover:text-cyan-600" />}
                         </button>
                     </div>
+
                     <LegendBox icon="star" color="amber" text="Gagne 10 XP par table ou division validée (max 3 fois chacune)" />
 
                     <h4 className="font-bold text-slate-400 text-xs uppercase mb-3 border-b pb-2 mt-6">Multiplications</h4>
@@ -212,6 +223,7 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                             )
                         })}
                     </div>
+
                     <h4 className="font-bold text-slate-400 text-xs uppercase mb-3 border-b pb-2">Divisions</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         {TABLES_LIST.map(t => {
@@ -239,7 +251,6 @@ export const TablesView = ({ user, onPlay, onBack, onSound }) => {
                         </div>
                         <button onClick={() => { if (selected.length === 0) return alert("Choisis au moins une table !"); if (!ops.mul && !ops.div) return alert("Choisis au moins un mode !"); onPlay('FREE_MIX', { tables: selected, modes: ops }); }} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg transform active:scale-95">Lancer l'entraînement</button>
                     </div>
-
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-800 uppercase text-sm mb-4 flex items-center gap-2"><Icon name="stopwatch" className="text-orange-500" /> 3. La Totale (Chrono)</h3>
                         <div className="text-xs text-slate-500 mb-4 bg-slate-50 p-2 rounded">Le Grand Chelem : 20 questions (× et ÷ mélangés). Vise le meilleur temps !</div>
@@ -295,6 +306,7 @@ const BrevetList = ({ onPlay, onBack, user, setShowPremiumModal }) => {
 
                 filteredList.sort((a, b) => (b.id || "").localeCompare(a.id || ""));
                 setSujets(filteredList);
+
             } catch (error) {
                 console.error("Erreur chargement:", error);
             } finally {
@@ -367,7 +379,6 @@ const BrevetList = ({ onPlay, onBack, user, setShowPremiumModal }) => {
                             <div className="h-28 bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden group-hover:bg-indigo-50 transition-colors">
                                 <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px]"></div>
                                 <Icon name="graduation-cap" className={`text-7xl transition-colors duration-500 transform group-hover:scale-110 ${isDraft || isLocked ? 'text-slate-300' : 'text-slate-200 group-hover:text-indigo-200'}`} />
-
                                 {bestScore && !accessDenied && (
                                     <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-bold shadow-sm border ${parseFloat(bestScore) >= 12 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
                                         Note : {bestScore}/20
@@ -417,6 +428,7 @@ const BrevetList = ({ onPlay, onBack, user, setShowPremiumModal }) => {
         </div>
     );
 };
+
 // ============================================================================
 // STUDENT DASHBOARD (MAIN)
 // ============================================================================
@@ -436,6 +448,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
         };
         loadRules();
     }, []);
+
     // On récupère aussi le 'loading' du hook premium
     // NOUVEAU : On passe 'user' en paramètre
     const { isPremium, loading: premiumLoading } = usePremium(user);
@@ -446,6 +459,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     if (globalLoading || premiumLoading) {
         return <LoadingScreen message="Vérification de ton compte..." />;
     }
+
     const menuStyles = {
         amber: { container: "border-b-amber-100 hover:border-amber-500", iconBox: "bg-amber-100 text-amber-600", footer: "text-amber-600" },
         indigo: { container: "border-b-indigo-100 hover:border-indigo-500", iconBox: "bg-indigo-100 text-indigo-600", footer: "text-indigo-600" },
@@ -455,7 +469,6 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
         purple: { container: "border-b-purple-100 hover:border-purple-500", iconBox: "bg-purple-100 text-purple-600", footer: "text-purple-600" },
         cyan: { container: "border-b-cyan-100 hover:border-cyan-500", iconBox: "bg-cyan-100 text-cyan-600", footer: "text-cyan-600" },
         rose: { container: "border-b-rose-100 hover:border-rose-500", iconBox: "bg-rose-100 text-rose-600", footer: "text-rose-600" },
-
         // TA NOUVELLE SECTION (Expert)
         slate: { container: "border-b-slate-300 hover:border-slate-800", iconBox: "bg-slate-800 text-white", footer: "text-slate-800" },
     };
@@ -471,7 +484,6 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 </div>
                 {footer && <div className={`mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold flex items-center gap-1 w-full ${style.footer}`}><Icon name="trophy" className="text-sm shrink-0" /><div className="w-full truncate">{typeof footer === 'function' ? footer() : footer}</div></div>}
             </button>
-
         );
     };
 
@@ -490,7 +502,6 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
         }
 
         // 3. PROGRESSION PÉDAGOGIQUE (Si l'exercice est autorisé)
-
         // Le niveau 1 est toujours ouvert pédagogiquement
         if (lvl === 1) return 'OPEN';
 
@@ -502,7 +513,6 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
     const handleClick = (id, lvl) => {
         onSound('CLICK');
         const status = getStatus(id, lvl);
-
         if (status === 'LOCKED') {
             // Toast d'erreur avec animation "secousse"
             toast.error(`🔒 Finis d'abord le niveau ${lvl - 1} !`, {
@@ -515,7 +525,9 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
 
     return (
         <div className="min-h-screen bg-slate-50 pb-8 md:pb-12">
+
             {showXPInfo && <XPHelpModal onClose={() => setShowXPInfo(false)} />}
+
             {showContact && (
                 <ContactModal
                     user={user}
@@ -532,6 +544,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     <div className="flex items-center gap-2 md:gap-3">
                         {user.role === 'teacher' && <button onClick={onAdmin} className="bg-slate-800 text-white w-8 h-8 md:w-auto md:px-3 md:py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-700"><Icon name="crown" /><span className="hidden md:inline">Profs</span></button>}
                         <button onClick={() => { onSound('CLICK'); setShowXPInfo(true); }} className="bg-amber-50 text-amber-700 px-2 py-1 md:px-3 rounded-full text-xs md:text-sm font-bold border border-amber-100 flex items-center gap-1 hover:bg-amber-100 hover:scale-105 transition-all cursor-pointer"><Icon name="star-fill" /> {user.data.xp}</button>
+
                         {/* Si l'élève n'est PAS premium, on affiche le bouton d'appel à l'action */}
                         {!isPremium && (
                             <button
@@ -553,11 +566,19 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 {activeTab === 'HOME' && <NewsBanner />}
 
                 {activeTab === 'HOME' && <SchoolHeader />}
+
                 {activeTab === 'HOME' && user.data.daily && <DailyQuestsWidget daily={user.data.daily} onPlay={onPlay} onGoToAuto={() => setActiveTab('AUTOMATISMES')} />}
 
                 {activeTab === 'HOME' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 fade-in">
-
+                        <MenuCard
+                            icon="target"
+                            title="Mes Compétences"
+                            desc="Suis tes acquis, tes révisions et ta progression."
+                            color="purple"
+                            onClick={() => setActiveTab('SKILLS')}
+                            footer="Bilan et suivi personnalisé"
+                        />
                         <MenuCard
                             icon="books"
                             title="Cours & Documents"
@@ -573,6 +594,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     </div>
                 )}
 
+                {activeTab === 'SKILLS' && <SkillsView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} />}
                 {activeTab === 'TABLES' && <TablesView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} onSound={onSound} />}
 
                 {activeTab === 'COURS' && (
@@ -583,11 +605,11 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                         >
                             <Icon name="arrow-left" /> Retour à l'accueil
                         </button>
-
                         {/* On appelle ton composant ici */}
                         <CoursesView userClass={user.data?.classe} />
                     </div>
                 )}
+
                 {activeTab === 'AUTOMATISMES' && (
                     <div className="fade-in space-y-4">
                         <button onClick={() => setActiveTab('HOME')} className="mb-2 text-sm text-slate-400 flex items-center gap-1 hover:text-indigo-600"><Icon name="arrow-left" /> Retour</button>
@@ -631,6 +653,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                                                     </div>
                                                 </div>
                                             </div>
+
                                             <span className={`text-[10px] font-bold text-${cat.color}-600 bg-white/50 px-2 py-0.5 rounded-full relative z-10`}>
                                                 {cat.exos.length} exos
                                             </span>
@@ -650,6 +673,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                                                 const isLocked = statusGlobal === 'LOCKED';
                                                 const progress = user.data.training?.[exo.id] || {};
                                                 const hasProgress = progress && Object.keys(progress).length > 0;
+
                                                 const rowBase = "flex justify-between items-center px-2 py-1.5 md:px-3 md:py-2 border-b border-slate-100 last:border-0 min-h-[40px]";
 
                                                 if (isLocked) {
@@ -665,6 +689,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
 
                                                 return (
                                                     <div key={exo.id} className={`${rowBase} hover:bg-slate-50 group transition-colors`}>
+
                                                         <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                                                             <div className="w-5 flex justify-center shrink-0">
                                                                 {hasProgress ? (
@@ -678,6 +703,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
 
                                                         <div className="flex gap-1 shrink-0">
                                                             {[1, 2, 3].map(lvl => {
+
                                                                 // --- 1. RÈGLES DE CONTENU (CMS) ---
                                                                 const ruleKey = `${exo.id}_lvl${lvl}`;
                                                                 const defaultRule = lvl === 1 ? 'FREE' : 'PREMIUM';
@@ -738,6 +764,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                                                                 );
                                                             })}
                                                         </div>
+
                                                     </div>
                                                 );
                                             })}
@@ -759,14 +786,15 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                 )}
 
                 {activeTab === 'SURVIVAL' && <SurvivalView user={user} onPlay={onPlay} onBack={() => setActiveTab('HOME')} setShowPremiumModal={setShowPremiumModal} />}
+
             </main>
+
             {showPremiumModal && (
                 <PremiumModal
                     onClose={() => setShowPremiumModal(false)}
                     onSubscribe={() => {
                         // 1. On récupère l'ID de l'élève
                         const userId = user.data?.id || user.id;
-
                         if (!userId) {
                             toast.error("Erreur d'identifiant. Déconnecte-toi et réessaie.");
                             return;
@@ -787,6 +815,7 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     }}
                 />
             )}
+
             <button
                 onClick={() => setShowContact(true)}
                 className="fixed bottom-6 right-6 bg-white text-indigo-600 p-4 rounded-full shadow-xl border border-indigo-100 hover:scale-110 hover:bg-indigo-600 hover:text-white transition-all z-40 group"
@@ -797,8 +826,6 @@ export const StudentDashboard = ({ user, onPlay, onLogout, activeTab, setActiveT
                     Besoin d'aide ?
                 </span>
             </button>
-
         </div>
-
     );
 };

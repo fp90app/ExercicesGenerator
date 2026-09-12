@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    collection, query, where, getDocs, getDoc, doc, updateDoc, increment
+    collection, query, where, getDocs, getDoc, doc, updateDoc, increment, setDoc
 } from "firebase/firestore";
 // Imports nécessaires pour l'authentification Firebase (Email)
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
@@ -280,6 +280,22 @@ export const useAuth = () => {
     // ====================================================================================
     const saveProgress = async (type, id, level, score, extraData) => {
         if (!user) return;
+
+        // --- NOUVEAUTÉ : LECTURE DE LA CONFIG XP DYNAMIQUE ---
+        let XP_AUTO = 2;   // Gain de base si le serveur ne répond pas
+        let XP_QUEST = 10; // Gain de base si le serveur ne répond pas
+        try {
+            const xpSnap = await getDoc(doc(db, "config", "xp"));
+            if (xpSnap.exists()) {
+                const conf = xpSnap.data();
+                XP_AUTO = Number(conf.automatisme) || 2;
+                XP_QUEST = Number(conf.queteComplete) || 10;
+            }
+        } catch (e) {
+            console.error("Erreur de lecture de la configuration XP, utilisation des valeurs par défaut.", e);
+        }
+        // -----------------------------------------------------
+
         const col = user.role === 'teacher' ? 'profs' : 'eleves';
         const docRef = doc(db, col, user.data.id);
 
@@ -354,20 +370,21 @@ export const useAuth = () => {
             // Pour le mode Mix Libre, l'ID peut être un objet, on évite de sauvegarder des stats précises qui planteraient
             if (type === 'FREE_MIX') {
                 // On ne fait rien de spécial pour l'instant en terme de stats persistantes pour le free mix
-                // Sauf si vous aviez une logique spécifique XP ici
             }
             else if (score >= threshold) {
                 // --- A. BONUS SPÉCIAUX (TOUTES LES TABLES) ---
                 if (type === 'TABLES_ALL') {
                     if (dailyUpdate.allTablesDate !== todayStr) {
-                        xpGain += 20; xpDetails.bonus = 20;
+                        xpGain += XP_QUEST;
+                        xpDetails.bonus = XP_QUEST;
                         dailyUpdate.allTablesDate = todayStr;
                         questCompletedNow = true;
                     }
                 }
                 else if (type === 'DIVISIONS_ALL') {
                     if (dailyUpdate.allDivisionsDate !== todayStr) {
-                        xpGain += 20; xpDetails.bonus = 20;
+                        xpGain += XP_QUEST;
+                        xpDetails.bonus = XP_QUEST;
                         dailyUpdate.allDivisionsDate = todayStr;
                         questCompletedNow = true;
                     }
@@ -384,8 +401,8 @@ export const useAuth = () => {
 
                     // XP limité aux 3 premiers succès pour éviter le farm
                     if (currentCount < 3) {
-                        xpGain += 10;
-                        xpDetails.exo = 10;
+                        xpGain += XP_AUTO;
+                        xpDetails.exo = XP_AUTO;
                     }
 
                     // Gestion Quête Q1 (Liste de tables à faire)
@@ -395,13 +412,13 @@ export const useAuth = () => {
 
                         if (isTarget && !dailyUpdate.q1.progress.includes(doneTargetId)) {
                             dailyUpdate.q1.progress.push(doneTargetId);
-                            xpGain += 10;
-                            xpDetails.quest = 10;
+                            xpGain += Math.floor(XP_QUEST / 3); // Gain fractionné pour chaque table cible
+                            xpDetails.quest = Math.floor(XP_QUEST / 3);
 
                             if (dailyUpdate.q1.progress.length >= 3) {
                                 dailyUpdate.q1.done = true;
-                                xpGain += 10;
-                                xpDetails.bonus = 10;
+                                xpGain += XP_QUEST; // Bonus final de quête
+                                xpDetails.bonus = XP_QUEST;
                                 questCompletedNow = true;
                             }
                         }
@@ -426,17 +443,9 @@ export const useAuth = () => {
                         const oldMax = Math.max(countVisuel - 1, countMemoire);
 
                         if (oldMax < 3) {
-                            // --- MODIFICATION POUR LIRE LE JSON DYNAMIQUE ---
-                            // On regarde si une valeur personnalisée est passée dans extraData
-                            let gain = safeLevel * 10; // Valeur par défaut
-
-                            // Si l'exercice envoie une récompense personnalisée (depuis le JSON)
-                            if (extraData && extraData.xp_reward) {
-                                gain = parseInt(extraData.xp_reward);
-                            }
-                            // ------------------------------------------------
-                            xpGain += gain;
-                            xpDetails.exo = gain;
+                            // On applique rigoureusement le réglage du professeur
+                            xpGain += XP_AUTO;
+                            xpDetails.exo = XP_AUTO;
 
                             updates[`xp_caps.${id}.${safeLevel}`] = oldMax + 1;
                             if (!newData.xp_caps) newData.xp_caps = {};
@@ -451,9 +460,8 @@ export const useAuth = () => {
 
                             // Bonus de quête seulement si on n'a pas déjà farmé ce niveau à fond
                             if (oldMax < 3) {
-                                let bonusQ = safeLevel === 3 ? 50 : (safeLevel === 2 ? 30 : 20);
-                                xpGain += bonusQ;
-                                xpDetails.quest = bonusQ;
+                                xpGain += XP_QUEST;
+                                xpDetails.quest = XP_QUEST;
                             }
                         }
                     }
@@ -465,8 +473,8 @@ export const useAuth = () => {
                     if (!dailyUpdate.completed && dailyUpdate.q1.done && dailyUpdate.q2.done) {
                         dailyUpdate.completed = true;
                         dailyUpdate.streak = (dailyUpdate.streak || 0) + 1;
-                        xpGain += 20;
-                        xpDetails.bonus += 20;
+                        xpGain += XP_QUEST; // Gain bonus pour avoir tout fait
+                        xpDetails.bonus += XP_QUEST;
                     }
                     // On applique les mises à jour daily
                     updates.daily = dailyUpdate;
