@@ -11,6 +11,7 @@ export const useCoursesAdmin = () => {
     const [chapters, setChapters] = useState([]);
     const [loading, setLoading] = useState(false);
     const [allClassesConfig, setAllClassesConfig] = useState({});
+    const [sectionSettings, setSectionSettings] = useState({}); // NOUVEAU : Réglages par catégorie
 
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
 
@@ -42,8 +43,14 @@ export const useCoursesAdmin = () => {
     const fetchClassesConfig = async () => {
         try {
             const snap = await getDoc(doc(db, "config", "courses"));
-            if (snap.exists()) setAllClassesConfig(snap.data());
-            else setAllClassesConfig({});
+            if (snap.exists()) {
+                const data = snap.data();
+                setAllClassesConfig(data);
+                setSectionSettings(data.sectionSettings || {});
+            } else {
+                setAllClassesConfig({});
+                setSectionSettings({});
+            }
         } catch (e) { console.error(e); }
     };
 
@@ -77,16 +84,31 @@ export const useCoursesAdmin = () => {
         else { setExpandedChapter(chapterId); if (!docs[chapterId]) fetchDocs(chapterId); }
     };
 
+    // --- NOUVEAU : Activer/Désactiver la numérotation d'une section ---
+    const toggleSectionNumbering = async (sectionName) => {
+        const isCurrentlyNumbered = sectionSettings[sectionName] !== false; // true par défaut
+        const newSettings = { ...sectionSettings, [sectionName]: !isCurrentlyNumbered };
+
+        try {
+            // merge: true est crucial ici pour ne pas effacer allClassesConfig
+            await setDoc(doc(db, "config", "courses"), { sectionSettings: newSettings }, { merge: true });
+            setSectionSettings(newSettings);
+            toast.success(!isCurrentlyNumbered ? "Numérotation activée" : "Numérotation masquée");
+        } catch (e) {
+            toast.error("Erreur de sauvegarde");
+        }
+    };
+
     const handleAddClass = async () => {
         if (!newClassInput.trim()) return;
         const className = newClassInput.trim().toUpperCase();
         const currentClasses = allClassesConfig[selectedLevel] || [];
         if (currentClasses.includes(className)) return toast.error("Existe déjà !");
 
-        const newConfig = { ...allClassesConfig, [selectedLevel]: [...currentClasses, className].sort() };
+        const newClasses = [...currentClasses, className].sort();
         try {
-            await setDoc(doc(db, "config", "courses"), newConfig);
-            setAllClassesConfig(newConfig);
+            await setDoc(doc(db, "config", "courses"), { [selectedLevel]: newClasses }, { merge: true });
+            setAllClassesConfig(prev => ({ ...prev, [selectedLevel]: newClasses }));
             setNewClassInput("");
             toast.success("Classe ajoutée");
         } catch (e) { toast.error("Erreur sauvegarde config"); }
@@ -97,10 +119,10 @@ export const useCoursesAdmin = () => {
             isOpen: true,
             message: `Supprimer cette classe (${cls}) ?`,
             onConfirm: async () => {
-                const newConfig = { ...allClassesConfig, [selectedLevel]: (allClassesConfig[selectedLevel] || []).filter(c => c !== cls) };
+                const newClasses = (allClassesConfig[selectedLevel] || []).filter(c => c !== cls);
                 try {
-                    await setDoc(doc(db, "config", "courses"), newConfig);
-                    setAllClassesConfig(newConfig);
+                    await setDoc(doc(db, "config", "courses"), { [selectedLevel]: newClasses }, { merge: true });
+                    setAllClassesConfig(prev => ({ ...prev, [selectedLevel]: newClasses }));
                 } catch (e) { toast.error("Erreur suppression"); }
                 setConfirmDialog({ isOpen: false, message: '', onConfirm: null });
             }
@@ -116,7 +138,7 @@ export const useCoursesAdmin = () => {
                     section: newChapterSection || "Chapitres"
                 });
                 setEditingChapter(null);
-                toast.success("Chapitre modifié");
+                toast.success("Élément modifié");
             } else {
                 const nextOrder = chapters.length > 0 ? Math.max(...chapters.map(c => c.order || 0)) + 1 : 1;
                 await addDoc(collection(db, "courses_chapters"), {
@@ -127,18 +149,18 @@ export const useCoursesAdmin = () => {
                     published: true,
                     createdAt: serverTimestamp()
                 });
-                toast.success("Chapitre créé");
+                toast.success("Élément créé");
             }
             setNewChapterTitle("");
             setNewChapterSection("Chapitres");
             fetchChapters();
-        } catch (e) { toast.error("Erreur chapitre"); }
+        } catch (e) { toast.error("Erreur de sauvegarde"); }
     };
 
     const handleDeleteChapter = (chapter) => {
         setConfirmDialog({
             isOpen: true,
-            message: `Supprimer le chapitre "${chapter.title}" et TOUS ses documents ?\nCette action est irréversible.`,
+            message: `Supprimer le bloc "${chapter.title}" et TOUS ses documents ?\nCette action est irréversible.`,
             onConfirm: async () => {
                 try {
                     const batch = writeBatch(db);
@@ -223,7 +245,6 @@ export const useCoursesAdmin = () => {
     const handleSaveDoc = async (chapterId) => {
         if (docType === 'LINK' && !docUrl) return toast.error("URL manquante");
 
-        // Sécurisation du nom de niveau pour le dossier Firebase (ex: "3ème" devient "3eme")
         const safeLevel = selectedLevel.replace('è', 'e').replace('é', 'e');
 
         if (editingDoc || docType === 'LINK' || (docType === 'FILE' && docFiles.length <= 1)) {
@@ -277,7 +298,6 @@ export const useCoursesAdmin = () => {
             } catch (e) { toast.error(e.message); } finally { setUploading(false); }
 
         } else {
-            // Upload multiple
             setUploading(true);
             try {
                 const currentDocs = docs[chapterId] || [];
@@ -333,12 +353,38 @@ export const useCoursesAdmin = () => {
         });
     };
 
-    const groupedChapters = chapters.reduce((acc, chapter) => {
-        const section = chapter.section || "Chapitres";
-        if (!acc[section]) acc[section] = [];
-        acc[section].push(chapter);
+    // --- LOGIQUE DE NUMÉROTATION DYNAMIQUE ---
+    let categoryCounters = {};
+
+    const groupedChapters = chapters.reduce((acc, chapter, index) => {
+        const sectionName = chapter.section || "Chapitres";
+
+        // Initialiser le compteur pour cette catégorie si besoin
+        if (categoryCounters[sectionName] === undefined) {
+            categoryCounters[sectionName] = 1;
+        }
+
+        // Vérifier si cette catégorie doit être numérotée (true par défaut)
+        const isNumbered = sectionSettings[sectionName] !== false;
+
+        // Calcul du numéro à afficher et incrémentation si nécessaire
+        const chapWithIndex = {
+            ...chapter,
+            originalIndex: index,
+            displayNumber: isNumbered ? categoryCounters[sectionName]++ : null
+        };
+
+        if (acc.length > 0 && acc[acc.length - 1].sectionName === sectionName) {
+            acc[acc.length - 1].items.push(chapWithIndex);
+        } else {
+            acc.push({
+                sectionName,
+                isNumbered, // On transmet l'information au composant visuel
+                items: [chapWithIndex]
+            });
+        }
         return acc;
-    }, {});
+    }, []);
 
     const currentClasses = allClassesConfig[selectedLevel] || [];
 
@@ -363,7 +409,9 @@ export const useCoursesAdmin = () => {
         docUrl, setDocUrl,
         selectedClasses, setSelectedClasses,
         confirmDialog, setConfirmDialog,
-        groupedChapters, currentClasses,
+        groupedChapters,
+        currentClasses,
+        sectionSettings, toggleSectionNumbering, // NOUVELLES EXPORTATIONS
         fetchClassesConfig, fetchChapters, fetchDocs, toggleChapter,
         handleAddClass, handleDeleteClass, handleSaveChapter, handleDeleteChapter,
         moveChapter, moveDoc, openAddForm, openEditForm, toggleClassTag,

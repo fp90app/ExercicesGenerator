@@ -10,6 +10,7 @@ export default function CoursesView({ userClass }) {
     const [selectedLevel, setSelectedLevel] = useState("3ème");
     const [availableClasses, setAvailableClasses] = useState([]); // ex: ["3A", "3B"]
     const [selectedClass, setSelectedClass] = useState(null);
+    const [sectionSettings, setSectionSettings] = useState({}); // Réglages de numérotation
 
     // --- CONTENU ---
     const [chapters, setChapters] = useState([]);
@@ -18,7 +19,7 @@ export default function CoursesView({ userClass }) {
     const [loading, setLoading] = useState(false);
     const [configLoaded, setConfigLoaded] = useState(false);
 
-    // 1. Charger la configuration des classes (pour afficher les boutons 3A, 3B...)
+    // 1. Charger la configuration des classes et des sections
     useEffect(() => {
         const fetchConfig = async () => {
             try {
@@ -27,8 +28,10 @@ export default function CoursesView({ userClass }) {
                 if (snap.exists()) {
                     const data = snap.data();
                     setAvailableClasses(data[selectedLevel] || []);
+                    setSectionSettings(data.sectionSettings || {});
                 } else {
                     setAvailableClasses([]);
+                    setSectionSettings({});
                 }
             } catch (e) {
                 console.error("Erreur config:", e);
@@ -101,13 +104,38 @@ export default function CoursesView({ userClass }) {
         return chapterDocs.filter(d => d.classes.includes('ALL') || d.classes.includes(selectedClass));
     };
 
-    // 5. REGROUPEMENT PAR RUBRIQUE (SECTION)
+    // 5. REGROUPEMENT ET NUMÉROTATION DYNAMIQUE
+    let categoryCounters = {};
+
     const groupedChapters = chapters.reduce((acc, chapter) => {
-        const section = chapter.section || "Chapitres"; // Rubrique par défaut
-        if (!acc[section]) acc[section] = [];
-        acc[section].push(chapter);
+        const sectionName = chapter.section || "Chapitres"; // Rubrique par défaut
+
+        // Initialiser le compteur pour cette catégorie
+        if (categoryCounters[sectionName] === undefined) {
+            categoryCounters[sectionName] = 1;
+        }
+
+        // Vérifier si cette catégorie doit être numérotée (true par défaut)
+        const isNumbered = sectionSettings[sectionName] !== false;
+
+        // Assigner un numéro seulement si la catégorie est numérotée
+        const chapWithNumber = {
+            ...chapter,
+            displayNumber: isNumbered ? categoryCounters[sectionName]++ : null
+        };
+
+        // Regroupement contigu
+        if (acc.length > 0 && acc[acc.length - 1].sectionName === sectionName) {
+            acc[acc.length - 1].items.push(chapWithNumber);
+        } else {
+            acc.push({
+                sectionName,
+                isNumbered,
+                items: [chapWithNumber]
+            });
+        }
         return acc;
-    }, {});
+    }, []);
 
     return (
         <div className="max-w-4xl mx-auto pb-12 px-4 md:px-0 animate-in fade-in">
@@ -125,8 +153,8 @@ export default function CoursesView({ userClass }) {
                             key={lvl}
                             onClick={() => setSelectedLevel(lvl)}
                             className={`flex-1 min-w-[80px] py-3 px-4 rounded-xl font-bold text-sm transition-all border-b-4 ${selectedLevel === lvl
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-500 shadow-sm'
-                                    : 'bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-500 shadow-sm'
+                                : 'bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100'
                                 }`}
                         >
                             {lvl}
@@ -152,8 +180,8 @@ export default function CoursesView({ userClass }) {
                                     key={cls}
                                     onClick={() => setSelectedClass(cls)}
                                     className={`px-6 py-2 rounded-lg font-bold transition-all border-2 ${selectedClass === cls
-                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-105'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-105'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
                                         }`}
                                 >
                                     {cls}
@@ -173,31 +201,31 @@ export default function CoursesView({ userClass }) {
             ) : loading ? (
                 <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
                     <Icon name="spinner" className="animate-spin text-2xl" />
-                    <span>Chargement des chapitres...</span>
+                    <span>Chargement des documents...</span>
                 </div>
             ) : (
                 <div className="space-y-10">
-                    {Object.keys(groupedChapters).length === 0 && (
+                    {groupedChapters.length === 0 && (
                         <div className="text-center p-10 bg-slate-50 rounded-2xl text-slate-400">
-                            Aucun chapitre publié pour les {selectedLevel}.
+                            Aucun contenu publié pour les {selectedLevel}.
                         </div>
                     )}
 
-                    {/* BOUCLE SUR LES RUBRIQUES (Manuels, Chapitres...) */}
-                    {Object.entries(groupedChapters).map(([sectionName, sectionChapters]) => (
-                        <div key={sectionName} className="animate-in slide-in-from-bottom-4 duration-500">
+                    {/* BOUCLE SUR LES GROUPES CONTIGUS (Manuels, Chapitres...) */}
+                    {groupedChapters.map((group, groupIdx) => (
+                        <div key={`group-${groupIdx}`} className="animate-in slide-in-from-bottom-4 duration-500">
 
                             {/* TITRE DE LA RUBRIQUE */}
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="h-px bg-slate-200 flex-1"></div>
                                 <h3 className="font-black text-slate-400 uppercase tracking-widest text-sm">
-                                    {sectionName}
+                                    {group.sectionName}
                                 </h3>
                                 <div className="h-px bg-slate-200 flex-1"></div>
                             </div>
 
                             <div className="space-y-4">
-                                {sectionChapters.map((chapter) => {
+                                {group.items.map((chapter) => {
                                     const isOpen = expandedChapter === chapter.id;
                                     const visibleDocs = getVisibleDocs(chapter.id);
 
@@ -205,25 +233,31 @@ export default function CoursesView({ userClass }) {
                                         <div key={chapter.id} className={`bg-white rounded-xl border transition-all duration-300 overflow-hidden ${isOpen ? 'border-emerald-200 shadow-md ring-1 ring-emerald-100' : 'border-slate-200 hover:border-emerald-300'}`}>
                                             <button onClick={() => handleToggleChapter(chapter.id)} className="w-full text-left p-4 md:p-5 flex items-center gap-4 bg-white hover:bg-slate-50 transition-colors">
 
-                                                {/* Numéro du Chapitre */}
+                                                {/* Numéro du Chapitre OU Icône pour éléments non-numérotés */}
                                                 <div className="flex flex-col items-center justify-center w-14 shrink-0">
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-colors ${isOpen ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                        {chapter.order}
+                                                        {chapter.displayNumber !== null ? chapter.displayNumber : <Icon name="bookmark-simple" weight="bold" size={20} />}
                                                     </div>
                                                 </div>
 
-                                                <div className="flex-1">
-                                                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">
-                                                        CHAPITRE {chapter.order}
-                                                    </span>
-                                                    <h3 className={`font-bold text-lg leading-tight ${isOpen ? 'text-emerald-900' : 'text-slate-700'}`}>
+                                                <div className="flex-1 min-w-0 pr-2">
+                                                    {chapter.displayNumber !== null ? (
+                                                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">
+                                                            CHAPITRE {chapter.displayNumber}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                                                            DOCUMENT
+                                                        </span>
+                                                    )}
+                                                    <h3 className={`font-bold text-lg leading-tight truncate ${isOpen ? 'text-emerald-900' : 'text-slate-700'}`}>
                                                         {chapter.title}
                                                     </h3>
                                                     <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
                                                         {isOpen ? <span>{visibleDocs.length} document(s)</span> : <span>Clique pour voir</span>}
                                                     </div>
                                                 </div>
-                                                <Icon name="caret-down" className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180 text-emerald-500' : ''}`} />
+                                                <Icon name="caret-down" className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-emerald-500' : ''}`} />
                                             </button>
 
                                             {/* LISTE DES DOCUMENTS */}
@@ -245,7 +279,7 @@ export default function CoursesView({ userClass }) {
                                                                         {!doc.classes.includes('ALL') && <span className="text-emerald-600 font-bold bg-emerald-100 px-1 rounded">Spécial {doc.classes.join(', ')}</span>}
                                                                     </div>
                                                                 </div>
-                                                                <div className="text-slate-300 group-hover:text-emerald-500 px-2"><Icon name="download-simple" weight="bold" /></div>
+                                                                <div className="text-slate-300 group-hover:text-emerald-500 px-2 shrink-0"><Icon name="download-simple" weight="bold" /></div>
                                                             </a>
                                                         ))
                                                     )}

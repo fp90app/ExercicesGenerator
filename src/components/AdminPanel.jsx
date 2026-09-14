@@ -9,6 +9,7 @@ import MessagesTab from './AdminPanel/MessagesTab';
 import ContentTab from './AdminPanel/ContentTab';
 import ConfigTab from './AdminPanel/ConfigTab';
 import ListTab from './AdminPanel/ListTab';
+import EvaluationsTab from './AdminPanel/EvaluationsTab'; // NOUVEAU : Import de l'onglet Évaluations
 
 // Import de la gestion des cours
 import CoursesAdmin from './CoursesAdmin/index.jsx';
@@ -75,6 +76,9 @@ export default function AdminPanel({ user, onBack }) {
                     <div className="flex gap-2 border-b border-slate-300 overflow-x-auto custom-scrollbar pb-1">
                         <TabButton id="USERS" label="Utilisateurs" icon="users" />
 
+                        {/* NOUVEAU : Bouton Évaluations */}
+                        <TabButton id="EVALUATIONS" label="Évaluations" icon="exam" />
+
                         {/* ONGLETS : Compétences */}
                         <TabButton id="SKILLS" label="Compétences" icon="target" />
                         <TabButton id="SKILLS_EDITOR" label="Éditeur Compétences" icon="sliders" />
@@ -110,6 +114,9 @@ export default function AdminPanel({ user, onBack }) {
                     <div className="bg-white p-6 rounded-b-3xl rounded-tr-3xl shadow-sm min-h-[500px]">
                         {/* UsersTab n'a plus besoin de props ! */}
                         {admin.activeTab === 'USERS' && <UsersTab />}
+
+                        {/* NOUVEAU : Affichage du composant EvaluationsTab */}
+                        {admin.activeTab === 'EVALUATIONS' && <EvaluationsTab />}
 
                         {admin.activeTab === 'SKILLS' && <SkillsMatrixTab />}
                         {admin.activeTab === 'SKILLS_EDITOR' && <SkillsEditorTab />}
@@ -156,4 +163,4 @@ export default function AdminPanel({ user, onBack }) {
             </div>
         </AdminContext.Provider>
     );
-};
+}

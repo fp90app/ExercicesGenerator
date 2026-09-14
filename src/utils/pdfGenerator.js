@@ -12,21 +12,21 @@ const getStudentHTML = (studentObj, compsToPrint, layout, matrixData, chapitresD
         let bgLight = "#f1f5f9";
 
         if (bilan === '🔴') { text = "Non acquis"; color = "#ef4444"; bgLight = "#fef2f2"; totalCount++; }
-        if (bilan === '🟡') { text = "En cours d'acquisition"; color = "#f59e0b"; bgLight = "#fffbeb"; totalCount++; }
-        if (bilan === '🟢') { text = "Acquis"; color = "#10b981"; bgLight = "#ecfdf5"; totalCount++; totalAcquis++; }
-        if (bilan === '🟩') { text = "Niveau dépassé"; color = "#047857"; bgLight = "#d1fae5"; totalCount++; totalAcquis++; }
+        if (bilan === '🟨') { text = "En cours d'acquisition"; color = "#f59e0b"; bgLight = "#fffbeb"; totalCount++; }
+        if (bilan === '🟩') { text = "Acquis"; color = "#10b981"; bgLight = "#ecfdf5"; totalCount++; totalAcquis++; }
+        if (bilan === '🟢') { text = "Niveau dépassé"; color = "#047857"; bgLight = "#d1fae5"; totalCount++; totalAcquis++; }
 
         return { ...comp, bilanText: text, color, bgLight };
     });
 
     const progressPercent = totalCount === 0 ? 0 : Math.round((totalAcquis / totalCount) * 100);
     const today = new Date().toLocaleDateString('fr-FR');
-    const groups = {};
 
+    const groups = {};
     studentSkills.forEach(s => {
         const key = layout === 'DOMAIN' ? s.domaine : s.chapitre;
         if (!groups[key]) {
-            const chapTitle = chapitresDetails[s.chapitre]?.titre || s.chapitreNom || "";
+            const chapTitle = chapitresDetails[`${selectedLevel}_${s.chapitre}`]?.titre || s.chapitreNom || "";
             groups[key] = {
                 title: layout === 'DOMAIN' ? s.domaine : `Chapitre ${s.chapitre} - ${chapTitle}`,
                 items: []
@@ -51,6 +51,7 @@ const getStudentHTML = (studentObj, compsToPrint, layout, matrixData, chapitresD
                 <p>Classe : <strong>${studentObj.classe || selectedLevel}</strong></p>
             </div>
         </div>
+        
         <div class="summary-box">
             <div>
                 <div class="summary-title">Taux de réussite</div>
@@ -90,6 +91,7 @@ const getStudentHTML = (studentObj, compsToPrint, layout, matrixData, chapitresD
 
 const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) => {
     const today = new Date().toLocaleDateString('fr-FR');
+
     let html = `
         <div class="header" style="border-bottom:none; margin-bottom:1rem;">
             <div>
@@ -101,6 +103,7 @@ const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) =>
                 <p>Élèves : <strong>${studentsList.length}</strong> | Compétences : <strong>${compsToPrint.length}</strong></p>
             </div>
         </div>
+
         <table class="matrix-table">
             <thead>
                 <tr>
@@ -110,7 +113,6 @@ const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) =>
     compsToPrint.forEach(c => {
         html += `<th class="matrix-col-header"><div class="vertical-text">${c.code || c.id}</div></th>`;
     });
-
     html += `</tr></thead><tbody>`;
 
     studentsList.forEach(stu => {
@@ -119,16 +121,19 @@ const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) =>
             const cData = matrixData[stu.id]?.[comp.id];
             const bilan = cData?.bilan || '⚪';
             let color = "#f1f5f9";
+
             if (bilan === '🔴') color = "#ef4444";
-            if (bilan === '🟡') color = "#f59e0b";
-            if (bilan === '🟢') color = "#10b981";
-            if (bilan === '🟩') color = "#047857";
+            if (bilan === '🟨') color = "#f59e0b";
+            if (bilan === '🟩') color = "#10b981";
+            if (bilan === '🟢') color = "#047857";
+
             html += `<td style="background-color: ${color}; border: 1px solid #cbd5e1; width: 22px; height: 22px; padding: 0;"></td>`;
         });
         html += `</tr>`;
     });
 
     html += `</tbody></table>`;
+
     html += `
         <div style="margin-top: 20px; display: flex; gap: 15px; font-size: 12px; font-weight: bold; color: #475569; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 5px;"><div style="width:12px; height:12px; background: #f1f5f9; border: 1px solid #cbd5e1;"></div> Non évalué</div>
@@ -138,6 +143,27 @@ const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) =>
             <div style="display: flex; align-items: center; gap: 5px;"><div style="width:12px; height:12px; background: #047857;"></div> Niveau dépassé</div>
         </div>
     `;
+
+    // --- NOUVEAU : LA LÉGENDE DES COMPÉTENCES ---
+    html += `
+        <div style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 15px; page-break-inside: avoid;">
+            <h3 style="font-size: 14px; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">Légende des Compétences</h3>
+            <div style="column-count: 2; column-gap: 20px; font-size: 10px; color: #334155;">
+    `;
+
+    compsToPrint.forEach(comp => {
+        html += `
+            <div style="margin-bottom: 6px; break-inside: avoid;">
+                <span style="font-weight: bold; color: #4f46e5;">${comp.code || comp.id}</span> : ${comp.intitule}
+            </div>
+        `;
+    });
+
+    html += `
+            </div>
+        </div>
+    `;
+
     return html;
 };
 
@@ -155,14 +181,21 @@ export const generateSkillsPDF = ({
     }
 
     const { mode, student, layout, selectedChapters } = printConfig;
-    const printWindow = window.open('', '_blank');
 
+    const printWindow = window.open('', '_blank');
     if (!printWindow) {
         toast.error("Veuillez autoriser les pop-ups pour pouvoir imprimer.");
         return false;
     }
 
-    const compsToPrint = levelComps.filter(c => selectedChapters.includes(c.chapitre));
+    // --- TRI INTELLIGENT POUR LE PDF ---
+    const compsToPrint = levelComps
+        .filter(c => selectedChapters.includes(c.chapitre))
+        .sort((a, b) => {
+            if (a.chapitre !== b.chapitre) return a.chapitre - b.chapitre;
+            if (a.type !== b.type) return a.type === 'Technique' ? -1 : 1;
+            return (a.code || a.id).localeCompare(b.code || b.id);
+        });
 
     let fullHtml = `
         <!DOCTYPE html>
@@ -229,5 +262,5 @@ export const generateSkillsPDF = ({
         printWindow.print();
     }, 300);
 
-    return true; // Retourne "true" si tout s'est bien passé
+    return true;
 };

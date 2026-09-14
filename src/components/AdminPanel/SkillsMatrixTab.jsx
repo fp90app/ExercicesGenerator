@@ -53,8 +53,10 @@ export default function SkillsMatrixTab() {
     const [chapitresDetails, setChapitresDetails] = useState({});
 
     // --- FILTRES DE LA GRILLE ---
+    const [filterClasse, setFilterClasse] = useState('ALL');
+    const [selectedDisplayChapters, setSelectedDisplayChapters] = useState([]);
+
     const [filterTrimestre, setFilterTrimestre] = useState('ALL');
-    const [filterChapitre, setFilterChapitre] = useState('ALL');
     const [filterType, setFilterType] = useState('ALL');
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [filterGrandeComp, setFilterGrandeComp] = useState('ALL');
@@ -81,6 +83,11 @@ export default function SkillsMatrixTab() {
         fetchAllData();
     }, []);
 
+    useEffect(() => {
+        setSelectedDisplayChapters([]);
+        setFilterClasse('ALL');
+    }, [selectedLevel]);
+
     const fetchAllData = async () => {
         setLoading(true);
         try {
@@ -98,7 +105,6 @@ export default function SkillsMatrixTab() {
 
             const compSnap = await getDocs(collection(db, "competences"));
             let comps = compSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            comps.sort((a, b) => a.chapitre - b.chapitre || (a.code || a.id).localeCompare(b.code || b.id));
             setCompetences(comps);
 
             const stuSnap = await getDocs(collection(db, "eleves"));
@@ -137,9 +143,7 @@ export default function SkillsMatrixTab() {
         try {
             const stuRef = doc(db, 'eleves', studentId);
             await setDoc(stuRef, { exp: increment(xpDiff) }, { merge: true });
-        } catch (e) {
-            console.error("Erreur de mise à jour XP", e);
-        }
+        } catch (e) { console.error("Erreur de mise à jour XP", e); }
     };
 
     // --- 3. LOGIQUE DE PÉREMPTION DOUCE ---
@@ -156,37 +160,25 @@ export default function SkillsMatrixTab() {
     const toggleChapterVisibility = async (chapNum) => {
         const currentLvlVisible = visibilityConfig[selectedLevel] || [];
         let newLvlVisible;
-        if (currentLvlVisible.includes(chapNum)) {
-            newLvlVisible = currentLvlVisible.filter(c => c !== chapNum);
-        } else {
-            newLvlVisible = [...currentLvlVisible, chapNum];
-        }
+        if (currentLvlVisible.includes(chapNum)) newLvlVisible = currentLvlVisible.filter(c => c !== chapNum);
+        else newLvlVisible = [...currentLvlVisible, chapNum];
+
         const newConfig = { ...visibilityConfig, [selectedLevel]: newLvlVisible };
         setVisibilityConfig(newConfig);
         try {
             await setDoc(doc(db, "config", "skills"), { visibleChapters: newConfig }, { merge: true });
             toast.success(`Visibilité mise à jour`);
-        } catch (e) {
-            toast.error("Erreur de sauvegarde");
-        }
+        } catch (e) { toast.error("Erreur de sauvegarde"); }
     };
 
     const updateChapterTrimestre = async (chapNum, newTrim) => {
         const chapKey = `${selectedLevel}_${chapNum}`;
-        const newDetails = {
-            ...chapitresDetails,
-            [chapKey]: {
-                ...(chapitresDetails[chapKey] || {}),
-                trimestre: newTrim
-            }
-        };
+        const newDetails = { ...chapitresDetails, [chapKey]: { ...(chapitresDetails[chapKey] || {}), trimestre: newTrim } };
         setChapitresDetails(newDetails);
         try {
             await setDoc(doc(db, "config", "skills"), { chapitresDetails: newDetails }, { merge: true });
             toast.success(`Chapitre assigné au Trimestre ${newTrim === 'ALL' ? 'Toute l\'année' : newTrim}`);
-        } catch (e) {
-            toast.error("Erreur de sauvegarde");
-        }
+        } catch (e) { toast.error("Erreur de sauvegarde"); }
     };
 
     const toggleStudent = (stuId) => {
@@ -214,23 +206,13 @@ export default function SkillsMatrixTab() {
             evals[index].note = sequence[(sequence.indexOf(curr) + 1) % sequence.length];
             if (!evals[index].date) evals[index].date = defaultDate;
         } else {
-            for (let i = evals.length; i <= index; i++) {
-                evals.push({ date: defaultDate, note: i === index ? '🔴' : '⚪' });
-            }
+            for (let i = evals.length; i <= index; i++) evals.push({ date: defaultDate, note: i === index ? '🔴' : '⚪' });
         }
 
         const { bilan, derniereEval } = recalculateBilan(evals);
         const xpDiff = getXpValue(bilan) - getXpValue(oldBilan);
 
-        const newData = {
-            competenceId: compId,
-            bilan,
-            derniereEval,
-            evaluations: evals,
-            cible: false,
-            enAttente: false
-        };
-
+        const newData = { competenceId: compId, bilan, derniereEval, evaluations: evals, cible: false, enAttente: false };
         saveDataToFirebase(studentId, compId, newData, false);
         if (xpDiff !== 0) updateStudentExp(studentId, xpDiff);
     };
@@ -264,15 +246,7 @@ export default function SkillsMatrixTab() {
         const newBilan = latest.note;
         const xpDiff = getXpValue(newBilan) - getXpValue(oldBilan);
 
-        const newData = {
-            competenceId: comp.id,
-            bilan: newBilan,
-            derniereEval: latest.date,
-            evaluations: allEvals,
-            cible: false,
-            enAttente: false
-        };
-
+        const newData = { competenceId: comp.id, bilan: newBilan, derniereEval: latest.date, evaluations: allEvals, cible: false, enAttente: false };
         saveDataToFirebase(student.id, comp.id, newData, true);
         if (xpDiff !== 0) updateStudentExp(student.id, xpDiff);
         setSelectedCell(null);
@@ -292,14 +266,7 @@ export default function SkillsMatrixTab() {
         const newBilan = latest.note;
         const xpDiff = getXpValue(newBilan) - getXpValue(oldBilan);
 
-        const newData = {
-            ...currentData,
-            competenceId: comp.id,
-            bilan: newBilan,
-            derniereEval: latest.date,
-            evaluations: allEvals
-        };
-
+        const newData = { ...currentData, competenceId: comp.id, bilan: newBilan, derniereEval: latest.date, evaluations: allEvals };
         saveDataToFirebase(student.id, comp.id, newData, false);
         if (xpDiff !== 0) updateStudentExp(student.id, xpDiff);
         setSelectedCell({ ...selectedCell, currentData: newData });
@@ -311,11 +278,7 @@ export default function SkillsMatrixTab() {
         let allEvals = [...currentData.evaluations];
         allEvals.splice(indexToDelete, 1);
 
-        let newData = {
-            ...currentData,
-            competenceId: comp.id,
-            evaluations: allEvals
-        };
+        let newData = { ...currentData, competenceId: comp.id, evaluations: allEvals };
 
         if (allEvals.length > 0) {
             const latest = allEvals[allEvals.length - 1];
@@ -335,11 +298,7 @@ export default function SkillsMatrixTab() {
     const toggleCible = () => {
         const { student, comp, currentData } = selectedCell;
         const isCurrentlyCibled = currentData?.cible === true;
-        const newData = {
-            ...(currentData || {}),
-            competenceId: comp.id,
-            cible: !isCurrentlyCibled
-        };
+        const newData = { ...(currentData || {}), competenceId: comp.id, cible: !isCurrentlyCibled };
         saveDataToFirebase(student.id, comp.id, newData, false);
         setSelectedCell({ ...selectedCell, currentData: newData });
         toast.success(isCurrentlyCibled ? "Ciblage retiré" : "Compétence ciblée !");
@@ -348,14 +307,9 @@ export default function SkillsMatrixTab() {
     const saveDataToFirebase = async (studentId, compId, newData, showToast = false) => {
         try {
             await setDoc(doc(db, `eleves/${studentId}/suivi_competences/${compId}`), newData);
-            setMatrixData(prev => ({
-                ...prev,
-                [studentId]: { ...prev[studentId], [compId]: newData }
-            }));
+            setMatrixData(prev => ({ ...prev, [studentId]: { ...prev[studentId], [compId]: newData } }));
             if (showToast) toast.success(`Mise à jour effectuée`);
-        } catch (error) {
-            toast.error("Erreur de sauvegarde");
-        }
+        } catch (error) { toast.error("Erreur de sauvegarde"); }
     };
 
     // --- 7. ÉDITION PAR LOTS (BULK EDIT AVEC XP) ---
@@ -366,18 +320,15 @@ export default function SkillsMatrixTab() {
     };
 
     const toggleBulkStudent = (studentId) => {
-        if (bulkSelectedStudents.includes(studentId)) {
-            setBulkSelectedStudents(bulkSelectedStudents.filter(id => id !== studentId));
-        } else {
-            setBulkSelectedStudents([...bulkSelectedStudents, studentId]);
-        }
+        if (bulkSelectedStudents.includes(studentId)) setBulkSelectedStudents(bulkSelectedStudents.filter(id => id !== studentId));
+        else setBulkSelectedStudents([...bulkSelectedStudents, studentId]);
     };
 
     const selectAllBulkStudents = () => {
         const levelDigit = selectedLevel.charAt(0);
         const studs = students.filter(s => {
             const matchLevel = s.niveau ? s.niveau === selectedLevel : (s.classe && s.classe.includes(levelDigit));
-            return matchLevel && !hiddenStudents.includes(s.id);
+            return matchLevel && (filterClasse === 'ALL' || s.classe === filterClasse) && !hiddenStudents.includes(s.id);
         });
         setBulkSelectedStudents(studs.map(s => s.id));
     };
@@ -405,14 +356,7 @@ export default function SkillsMatrixTab() {
                 const newBilan = latest.note;
                 const xpDiff = getXpValue(newBilan) - getXpValue(oldBilan);
 
-                const newData = {
-                    competenceId: bulkEditSkill.id,
-                    bilan: newBilan,
-                    derniereEval: latest.date,
-                    evaluations: allEvals,
-                    cible: false,
-                    enAttente: false
-                };
+                const newData = { competenceId: bulkEditSkill.id, bilan: newBilan, derniereEval: latest.date, evaluations: allEvals, cible: false, enAttente: false };
 
                 const docRef = doc(db, `eleves/${studentId}/suivi_competences/${bulkEditSkill.id}`);
                 batch.set(docRef, newData);
@@ -421,7 +365,6 @@ export default function SkillsMatrixTab() {
                     const stuRef = doc(db, `eleves/${studentId}`);
                     batch.set(stuRef, { exp: increment(xpDiff) }, { merge: true });
                 }
-
                 newMatrixCopy[studentId] = { ...newMatrixCopy[studentId], [bulkEditSkill.id]: newData };
             }
 
@@ -429,9 +372,7 @@ export default function SkillsMatrixTab() {
             setMatrixData(newMatrixCopy);
             toast.success(`${bulkSelectedStudents.length} élèves évalués !`, { id: loadingToast });
             setBulkEditSkill(null);
-        } catch (error) {
-            toast.error("Erreur lors de l'évaluation par lots", { id: loadingToast });
-        }
+        } catch (error) { toast.error("Erreur lors de l'évaluation par lots", { id: loadingToast }); }
     };
 
     // --- 8. CODES COULEURS ET RENDU ---
@@ -444,44 +385,61 @@ export default function SkillsMatrixTab() {
     };
 
     const getCellBgClass = (emoji, isCibled, isWaiting) => {
-        let base = 'bg-slate-50/50 hover:bg-slate-100';
+        let base = 'hover:bg-slate-100';
         if (emoji === '🔴') base = 'bg-red-50 hover:bg-red-100';
         if (emoji === '🟨') base = 'bg-amber-50 hover:bg-amber-100';
         if (emoji === '🟩') base = 'bg-emerald-50 hover:bg-emerald-100';
         if (emoji === '🟢') base = 'bg-emerald-100 hover:bg-emerald-200';
-
         if (isCibled) base += ' ring-2 ring-inset ring-indigo-500';
         else if (isWaiting) base += ' ring-2 ring-inset ring-amber-500';
-
         return base;
     };
 
     // --- 9. FILTRAGE ET STATISTIQUES ---
     const levelDigit = selectedLevel.charAt(0);
+
+    // Classes disponibles pour le filtre
+    const availableClasses = [...new Set(students.filter(s => {
+        return s.niveau ? s.niveau === selectedLevel : (s.classe && s.classe.includes(levelDigit));
+    }).map(s => s.classe).filter(Boolean))].sort();
+
+    // Filtrage des élèves selon niveau ET classe
     const filteredStudents = students.filter(s => {
-        if (s.niveau) return s.niveau === selectedLevel;
-        return s.classe && s.classe.includes(levelDigit);
+        const matchLevel = s.niveau ? s.niveau === selectedLevel : (s.classe && s.classe.includes(levelDigit));
+        if (!matchLevel) return false;
+        if (filterClasse !== 'ALL' && s.classe !== filterClasse) return false;
+        return true;
     });
 
     const visibleStudents = filteredStudents.filter(s => !hiddenStudents.includes(s.id));
+
+    // Compétences de ce niveau
     const levelComps = competences.filter(c => (c.niveau || '6ème') === selectedLevel);
     const allChapitresDispos = [...new Set(levelComps.map(c => c.chapitre))].sort((a, b) => a - b);
 
+    // Application des filtres pour l'affichage de la grille
     const finalComps = levelComps.filter(c => {
+        // Filtrage strict par chapitres sélectionnés (Par défaut, rien ne s'affiche)
+        if (selectedDisplayChapters.length === 0) return false;
+        if (!selectedDisplayChapters.includes(c.chapitre)) return false;
+
+        // Autres filtres optionnels
         if (filterTrimestre !== 'ALL') {
             const chapKey = `${selectedLevel}_${c.chapitre}`;
             const chapTrimestre = String(chapitresDetails[chapKey]?.trimestre || '1');
             if (chapTrimestre !== 'ALL' && chapTrimestre !== String(filterTrimestre)) return false;
         }
-        if (filterChapitre !== 'ALL' && String(c.chapitre) !== filterChapitre) return false;
         if (filterType !== 'ALL' && c.type !== filterType) return false;
         if (filterGrandeComp !== 'ALL') {
             if (!c.grandesCompetences || !c.grandesCompetences.includes(filterGrandeComp)) return false;
         }
         return true;
+    }).sort((a, b) => {
+        // TRI INTELLIGENT
+        if (a.chapitre !== b.chapitre) return a.chapitre - b.chapitre;
+        if (a.type !== b.type) return a.type === 'Technique' ? -1 : 1;
+        return (a.code || a.id).localeCompare(b.code || b.id);
     });
-
-    const filteredChapitresDispos = [...new Set(finalComps.map(c => c.chapitre))].sort((a, b) => a - b);
 
     let classScore = 0;
     const criticalSkills = [];
@@ -506,11 +464,15 @@ export default function SkillsMatrixTab() {
 
     // --- 10. IMPRESSION (INDIVIDUELLE, CLASSE, GRILLE) ---
     const openPrintModal = (mode, student = null) => {
+        if (selectedDisplayChapters.length === 0) {
+            toast.error("Veuillez d'abord cocher des chapitres à afficher dans la grille.");
+            return;
+        }
         setPrintConfig({
             mode,
             student,
             layout: 'DOMAIN',
-            selectedChapters: [...filteredChapitresDispos]
+            selectedChapters: [...selectedDisplayChapters]
         });
     };
 
@@ -526,11 +488,10 @@ export default function SkillsMatrixTab() {
     const toggleAllPrintChapters = (activate) => {
         setPrintConfig(prev => ({
             ...prev,
-            selectedChapters: activate ? [...filteredChapitresDispos] : []
+            selectedChapters: activate ? [...selectedDisplayChapters] : []
         }));
     };
 
-    // Fait appel à notre fonction externe de génération de PDF
     const handleGeneratePDF = () => {
         const success = generateSkillsPDF({
             printConfig,
@@ -540,10 +501,7 @@ export default function SkillsMatrixTab() {
             chapitresDetails,
             selectedLevel
         });
-
-        if (success) {
-            setPrintConfig(null);
-        }
+        if (success) setPrintConfig(null);
     };
 
     if (loading) return <div className="p-10 text-center text-slate-400 font-bold"><Icon name="spinner" className="animate-spin text-2xl mb-2" /> Chargement de la matrice...</div>;
@@ -570,7 +528,7 @@ export default function SkillsMatrixTab() {
                     <h3 className="text-sm font-black uppercase tracking-widest text-indigo-200 mb-1">Coopération</h3>
                     <div className="text-3xl font-black">{classScore} pts</div>
                     <p className="text-xs text-indigo-100 font-medium mt-1">
-                        Score global de la classe. Incitez-les à s'entraider pour le faire monter ! (🟨=1, 🟩=3, 🟢=5)
+                        Score global sur les chapitres affichés actuellement. Incitez-les à s'entraider ! (🟨=1, 🟩=3, 🟢=5)
                     </p>
                 </div>
 
@@ -599,7 +557,7 @@ export default function SkillsMatrixTab() {
                                 </span>
                             ))
                         ) : (
-                            <span className="text-sm font-medium text-slate-400 italic">Aucune alerte rouge globale.</span>
+                            <span className="text-sm font-medium text-slate-400 italic">Aucune alerte rouge pour ces chapitres.</span>
                         )}
                     </div>
                 </div>
@@ -622,22 +580,21 @@ export default function SkillsMatrixTab() {
                     <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
                     <Icon name="funnel" className="text-slate-400" />
 
+                    {/* Filtre par Classe */}
+                    <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200 shrink-0">
+                        <Icon name="users" className="text-slate-500 ml-1" />
+                        <select value={filterClasse} onChange={e => setFilterClasse(e.target.value)} className="bg-transparent text-sm font-bold text-indigo-700 outline-none cursor-pointer">
+                            <option value="ALL">Toutes les classes</option>
+                            {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
                     {/* Filtre Trimestre */}
                     <select value={filterTrimestre} onChange={e => setFilterTrimestre(e.target.value)} className="p-2 rounded-lg border border-slate-200 text-sm font-bold bg-white text-slate-700 outline-none focus:border-indigo-500 shadow-sm cursor-pointer">
                         <option value="ALL">Tous les trimestres</option>
                         <option value="1">Trimestre 1</option>
                         <option value="2">Trimestre 2</option>
                         <option value="3">Trimestre 3</option>
-                    </select>
-
-                    {/* Filtre Chapitre */}
-                    <select value={filterChapitre} onChange={e => setFilterChapitre(e.target.value)} className="max-w-[280px] truncate p-2 rounded-lg border border-slate-200 text-sm font-bold bg-white text-slate-700 outline-none focus:border-indigo-500 shadow-sm cursor-pointer">
-                        <option value="ALL">Tous chapitres</option>
-                        {allChapitresDispos.map(ch => {
-                            const chapKey = `${selectedLevel}_${ch}`;
-                            const title = chapitresDetails[chapKey]?.titre || levelComps.find(c => c.chapitre === ch)?.chapitreNom || "";
-                            return <option key={ch} value={ch}>Chapitre {ch}{title ? ` - ${title}` : ''}</option>;
-                        })}
                     </select>
 
                     {/* Filtre Type */}
@@ -665,8 +622,35 @@ export default function SkillsMatrixTab() {
                     </select>
                 </div>
 
-                {/* VISIBILITÉ ET CONFIGURATION PAR CHAPITRE */}
                 <div className="pt-4 border-t border-slate-100 flex flex-col gap-4">
+                    {/* Sélection des chapitres affichés */}
+                    <div className="flex flex-col gap-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-bold text-indigo-800 uppercase tracking-widest flex items-center gap-2">
+                                <Icon name="eye" weight="bold" /> Chapitres affichés dans la grille :
+                            </span>
+                            <div className="flex gap-3">
+                                <button onClick={() => setSelectedDisplayChapters(allChapitresDispos)} className="text-[10px] font-bold text-indigo-600 hover:underline">Tout cocher</button>
+                                <button onClick={() => setSelectedDisplayChapters([])} className="text-[10px] font-bold text-slate-500 hover:underline">Tout décocher</button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            {allChapitresDispos.map(ch => {
+                                const isSelected = selectedDisplayChapters.includes(ch);
+                                const chapKey = `${selectedLevel}_${ch}`;
+                                const chapTitle = chapitresDetails[chapKey]?.titre || levelComps.find(c => c.chapitre === ch)?.chapitreNom || "";
+                                return (
+                                    <label key={ch} title={chapTitle} className={`px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-all ${isSelected ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
+                                        <input type="checkbox" className="hidden" checked={isSelected} onChange={() => {
+                                            setSelectedDisplayChapters(prev => prev.includes(ch) ? prev.filter(x => x !== ch) : [...prev, ch].sort((a, b) => a - b));
+                                        }} />
+                                        Chap. {ch}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Configuration des chapitres (Visibilité & Trimestre) :</span>
                         <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
@@ -708,16 +692,23 @@ export default function SkillsMatrixTab() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2">Élèves affichés :</span>
-                        <button onClick={() => setHiddenStudents([])} className="px-2 py-1 text-[10px] font-bold bg-slate-800 text-white rounded">Tous les élèves</button>
-                        {filteredStudents.map(s => {
-                            const isHidden = hiddenStudents.includes(s.id);
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2">Élèves masqués :</span>
+                        {hiddenStudents.length === 0 ? (
+                            <span className="text-[10px] font-medium text-slate-400 italic">Aucun élève masqué.</span>
+                        ) : (
+                            <button onClick={() => setHiddenStudents([])} className="px-2 py-1 text-[10px] font-bold bg-slate-800 text-white rounded">Tout réafficher</button>
+                        )}
+                        {hiddenStudents.map(id => {
+                            const stu = students.find(s => s.id === id);
+                            if (!stu) return null;
                             return (
-                                <button key={s.id} onClick={() => toggleStudent(s.id)} className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${isHidden ? 'bg-white text-slate-300 border-slate-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
-                                    {s.nom}
+                                <button key={id} onClick={() => toggleStudent(id)} className="px-2 py-1 rounded text-[10px] font-bold bg-slate-200 text-slate-600 hover:bg-red-100 hover:text-red-600 transition-colors" title="Cliquer pour réafficher cet élève">
+                                    {stu.nom} <Icon name="eye-slash" size={10} className="inline ml-1" />
                                 </button>
                             );
                         })}
+                        {/* Bouton pour masquer des élèves (optionnel, pour l'instant on les masque au clic sur le nom ?) */}
+                        <span className="text-[10px] text-slate-400 ml-2 italic">Astuce : Vous pouvez masquer un élève en cliquant dessus dans la liste ci-dessous.</span>
                     </div>
                 </div>
             </div>
@@ -726,148 +717,155 @@ export default function SkillsMatrixTab() {
                 <span className="font-bold text-slate-700">CLIC GAUCHE :</span> Couleur (Cyclique) | <span className="font-bold text-slate-700">CLIC DROIT (Ou Long) :</span> Modale Détails & Historique Éditable
             </div>
 
-            {/* LA GRILLE (MATRICE EN TABLEAU) */}
+            {/* LA GRILLE (MATRICE EN TABLEAU) COMPACTE */}
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="overflow-x-auto max-h-[700px] custom-scrollbar">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 shadow-sm">
-                            <tr>
-                                <th className="p-3 font-black uppercase tracking-wider sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[170px]">
-                                    <div className="flex items-center justify-between">
-                                        <span>Élèves ({visibleStudents.length})</span>
-                                        <div className="flex gap-1">
-                                            <button
-                                                onClick={() => openPrintModal('CLASS')}
-                                                className="p-1.5 bg-white rounded text-indigo-600 shadow-sm border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
-                                                title="Imprimer les bilans de toute la classe"
-                                            >
-                                                <Icon name="files" weight="fill" />
-                                            </button>
-                                            <button
-                                                onClick={() => openPrintModal('MATRIX')}
-                                                className="p-1.5 bg-white rounded text-emerald-600 shadow-sm border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
-                                                title="Imprimer la grille globale pour le prof"
-                                            >
-                                                <Icon name="grid-four" weight="fill" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </th>
-                                {finalComps.map(comp => {
-                                    const cColor = DOMAIN_COLORS[comp.domaine] || 'slate';
-                                    const chapKey = `${selectedLevel}_${comp.chapitre}`;
-                                    const chapTitle = chapitresDetails[chapKey]?.titre || comp.chapitreNom || "";
-
-                                    return (
-                                        <th key={comp.id} className="p-3 border-l border-slate-200 min-w-[280px] max-w-[350px] align-top bg-slate-50 group">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`text-[10px] font-black text-${cColor}-700 bg-${cColor}-100 border border-${cColor}-200 rounded px-1.5 py-0.5`}>
-                                                        {comp.code || comp.id}
-                                                    </div>
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[180px]" title={`Chapitre ${comp.chapitre}${chapTitle ? ` - ${chapTitle}` : ''}`}>
-                                                        Chap. {comp.chapitre}{chapTitle ? ` - ${chapTitle}` : ''}
-                                                    </div>
-                                                </div>
+                {finalComps.length === 0 ? (
+                    <div className="p-12 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                        <Icon name="table" size={48} className="opacity-20 mb-4" />
+                        <p className="font-bold text-lg text-slate-500">Aucun chapitre sélectionné.</p>
+                        <p className="text-sm">Cochez les chapitres que vous souhaitez afficher dans la barre juste au-dessus.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto max-h-[82vh] custom-scrollbar border-t border-slate-200">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-slate-100 text-slate-600 sticky top-0 z-20 shadow-sm">
+                                <tr>
+                                    <th className="p-2 px-3 font-black uppercase tracking-wider sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] min-w-[150px]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs">Élèves ({visibleStudents.length})</span>
+                                            <div className="flex gap-1">
                                                 <button
-                                                    onClick={() => openBulkEdit(comp)}
-                                                    className="opacity-0 group-hover:opacity-100 p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                                    title="Évaluer tous les élèves pour cette compétence"
+                                                    onClick={() => openPrintModal('CLASS')}
+                                                    className="p-1 bg-white rounded text-indigo-600 shadow-sm border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                                                    title="Imprimer les bilans de la sélection"
                                                 >
-                                                    <Icon name="magic-wand" weight="bold" />
+                                                    <Icon name="files" size={16} weight="fill" />
+                                                </button>
+                                                <button
+                                                    onClick={() => openPrintModal('MATRIX')}
+                                                    className="p-1 bg-white rounded text-emerald-600 shadow-sm border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+                                                    title="Imprimer la grille globale"
+                                                >
+                                                    <Icon name="grid-four" size={16} weight="fill" />
                                                 </button>
                                             </div>
-                                            <div className="text-xs font-bold text-slate-700 leading-tight">
-                                                {comp.intitule}
+                                        </div>
+                                    </th>
+                                    {finalComps.map(comp => {
+                                        const cColor = DOMAIN_COLORS[comp.domaine] || 'slate';
+                                        const chapKey = `${selectedLevel}_${comp.chapitre}`;
+                                        const chapTitle = chapitresDetails[chapKey]?.titre || comp.chapitreNom || "";
+
+                                        return (
+                                            <th key={comp.id} className="p-2 border-l border-slate-200 min-w-[130px] max-w-[160px] align-top bg-slate-50 group">
+                                                <div className="flex items-start justify-between mb-1.5 gap-1">
+                                                    <div className="flex flex-col gap-1 min-w-0">
+                                                        <div className={`text-[10px] font-black text-${cColor}-700 bg-${cColor}-100 border border-${cColor}-200 rounded px-1.5 py-0.5 inline-block w-fit`}>
+                                                            {comp.code || comp.id}
+                                                        </div>
+                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate" title={`Chapitre ${comp.chapitre}${chapTitle ? ` - ${chapTitle}` : ''}`}>
+                                                            Ch. {comp.chapitre}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => openBulkEdit(comp)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0"
+                                                        title="Évaluer tous les élèves pour cette compétence"
+                                                    >
+                                                        <Icon name="magic-wand" size={14} weight="bold" />
+                                                    </button>
+                                                </div>
+                                                <div className="text-[10px] font-bold text-slate-700 leading-tight whitespace-normal mb-2 line-clamp-4" title={comp.intitule}>
+                                                    {comp.intitule}
+                                                </div>
                                                 {comp.grandesCompetences && comp.grandesCompetences.length > 0 && (
-                                                    <div className="flex gap-1 flex-wrap mt-1">
+                                                    <div className="flex flex-col gap-1">
                                                         {comp.grandesCompetences.map(gc => (
-                                                            <span key={gc} title={gc} className="px-1.5 py-0.5 rounded text-[9px] font-black bg-slate-200 text-slate-600 uppercase tracking-widest">
+                                                            <span key={gc} title={gc} className="px-1.5 py-0.5 rounded text-[8px] font-black bg-slate-200 text-slate-600 uppercase tracking-widest w-fit">
                                                                 {gc}
                                                             </span>
                                                         ))}
                                                     </div>
                                                 )}
-                                            </div>
-                                        </th>
-                                    );
-                                })}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {visibleStudents.map((student, idx) => (
-                                <tr key={student.id} className="border-t border-slate-100 group hover:bg-slate-50">
-                                    <td className={`p-3 font-bold text-slate-800 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] bg-white group-hover:bg-slate-50`}>
-                                        <div className="flex items-center justify-between">
-                                            <span className="truncate max-w-[130px]" title={student.nom}>{student.nom}</span>
-                                            <button
-                                                onClick={() => openPrintModal('INDIVIDUAL', student)}
-                                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 p-1 bg-slate-100 hover:bg-indigo-50 rounded transition-all"
-                                                title="Imprimer le bilan de cet élève"
-                                            >
-                                                <Icon name="printer" weight="fill" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                    {finalComps.map(comp => {
-                                        const cData = matrixData[student.id]?.[comp.id];
-                                        const isExp = isSkillExpired(cData, comp.validiteMois);
-                                        const isCibled = cData?.cible === true;
-                                        const isWaiting = cData?.enAttente === true;
-                                        const currentBilan = cData?.bilan || '⚪';
-
-                                        let isFaded = false;
-                                        if (filterStatus === 'DANGER' && currentBilan !== '🔴') isFaded = true;
-                                        if (filterStatus === 'REVISE' && !isExp) isFaded = true;
-                                        if (filterStatus === 'WAITING' && !isWaiting) isFaded = true;
-                                        if (filterStatus === 'TARGETED' && !isCibled) isFaded = true;
-
-                                        const cellBg = getCellBgClass(currentBilan, isCibled, isWaiting);
-                                        const evals = cData?.evaluations || [];
-                                        const totalDots = Math.max(3, evals.length + (evals.length > 0 && evals[evals.length - 1].note !== '⚪' ? 1 : 0));
-
-                                        const dotsArray = [];
-                                        for (let i = 0; i < totalDots; i++) {
-                                            dotsArray.push({ note: evals[i]?.note || '⚪', date: evals[i]?.date || null });
-                                        }
-
-                                        return (
-                                            <td
-                                                key={comp.id}
-                                                className={`border-l border-slate-200 p-3 relative align-middle transition-all cursor-pointer ${cellBg} ${isFaded ? 'opacity-20 grayscale' : 'opacity-100'}`}
-                                                onContextMenu={(e) => handleDotRightClick(e, student.id, comp.id, cData, comp)}
-                                            >
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        {dotsArray.map((dot, i) => (
-                                                            <button
-                                                                key={i}
-                                                                onClick={(e) => handleDotClick(e, student.id, comp.id, i, cData)}
-                                                                className={`w-4 h-4 rounded-full border shadow-sm transition-transform hover:scale-125 focus:outline-none ${getDotColorClass(dot.note)}`}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 shrink-0">
-                                                        {isExp && <span className="text-[10px] font-bold text-slate-400 bg-white/60 border border-slate-200 px-1 py-0.5 rounded shadow-sm" title="À réévaluer">À réévaluer</span>}
-                                                        {isWaiting && <span className="text-sm" title="Élève en attente de validation">⏳</span>}
-                                                        {isCibled && <span className="text-sm" title="Compétence ciblée par vous">🎯</span>}
-                                                    </div>
-                                                </div>
-                                            </td>
+                                            </th>
                                         );
                                     })}
                                 </tr>
-                            ))}
-                            {visibleStudents.length === 0 && (
-                                <tr>
-                                    <td colSpan={finalComps.length + 1} className="p-8 text-center text-slate-400 italic">
-                                        Aucun élève à afficher.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody className="bg-slate-50">
+                                {visibleStudents.map((student, idx) => (
+                                    <tr key={student.id} className="border-t border-slate-200 group hover:bg-indigo-50/30 transition-colors">
+                                        <td className={`py-1.5 px-3 font-bold text-slate-800 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] bg-white group-hover:bg-slate-50`}>
+                                            <div className="flex items-center justify-between">
+                                                <div
+                                                    className="cursor-pointer hover:text-red-500 truncate max-w-[120px] text-xs"
+                                                    title={`Cliquer pour masquer ${student.nom}`}
+                                                    onClick={() => toggleStudent(student.id)}
+                                                >
+                                                    {student.nom}
+                                                </div>
+                                                <button
+                                                    onClick={() => openPrintModal('INDIVIDUAL', student)}
+                                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 p-1 bg-slate-100 hover:bg-indigo-50 rounded transition-all shrink-0 ml-1"
+                                                    title="Imprimer le bilan de cet élève"
+                                                >
+                                                    <Icon name="printer" size={14} weight="fill" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                        {finalComps.map(comp => {
+                                            const cData = matrixData[student.id]?.[comp.id];
+                                            const isExp = isSkillExpired(cData, comp.validiteMois);
+                                            const isCibled = cData?.cible === true;
+                                            const isWaiting = cData?.enAttente === true;
+                                            const currentBilan = cData?.bilan || '⚪';
+
+                                            let isFaded = false;
+                                            if (filterStatus === 'DANGER' && currentBilan !== '🔴') isFaded = true;
+                                            if (filterStatus === 'REVISE' && !isExp) isFaded = true;
+                                            if (filterStatus === 'WAITING' && !isWaiting) isFaded = true;
+                                            if (filterStatus === 'TARGETED' && !isCibled) isFaded = true;
+
+                                            const cellBg = getCellBgClass(currentBilan, isCibled, isWaiting);
+                                            const evals = cData?.evaluations || [];
+                                            const totalDots = Math.max(3, evals.length + (evals.length > 0 && evals[evals.length - 1].note !== '⚪' ? 1 : 0));
+
+                                            const dotsArray = [];
+                                            for (let i = 0; i < totalDots; i++) {
+                                                dotsArray.push({ note: evals[i]?.note || '⚪', date: evals[i]?.date || null });
+                                            }
+
+                                            return (
+                                                <td
+                                                    key={comp.id}
+                                                    className={`border-l border-slate-200 py-1.5 px-2 relative align-middle transition-all cursor-pointer ${cellBg} ${isFaded ? 'opacity-20 grayscale' : 'opacity-100'}`}
+                                                    onContextMenu={(e) => handleDotRightClick(e, student.id, comp.id, cData, comp)}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-1 flex-wrap">
+                                                            {dotsArray.map((dot, i) => (
+                                                                <button
+                                                                    key={i}
+                                                                    onClick={(e) => handleDotClick(e, student.id, comp.id, i, cData)}
+                                                                    className={`w-3.5 h-3.5 rounded-full border shadow-sm transition-transform hover:scale-125 focus:outline-none ${getDotColorClass(dot.note)}`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            {isExp && <span className="text-[9px] font-bold text-slate-400 bg-white/60 border border-slate-200 px-1 py-0.5 rounded shadow-sm" title="À réévaluer">À réévaluer</span>}
+                                                            {isWaiting && <span className="text-xs" title="Élève en attente de validation">⏳</span>}
+                                                            {isCibled && <span className="text-xs" title="Compétence ciblée par vous">🎯</span>}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* --- MODALE DE CONFIGURATION IMPRESSION --- */}
@@ -884,7 +882,7 @@ export default function SkillsMatrixTab() {
                             <div className="text-sm font-bold text-indigo-200 leading-tight">
                                 {printConfig.mode === 'INDIVIDUAL' && `Élève : ${printConfig.student.nom}`}
                                 {printConfig.mode === 'CLASS' && `${visibleStudents.length} élèves sélectionnés`}
-                                {printConfig.mode === 'MATRIX' && `Vue d'ensemble de la classe`}
+                                {printConfig.mode === 'MATRIX' && `Vue d'ensemble de la sélection`}
                             </div>
                         </div>
 
@@ -919,7 +917,7 @@ export default function SkillsMatrixTab() {
                                 </div>
 
                                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 max-h-48 overflow-y-auto grid grid-cols-2 gap-2">
-                                    {filteredChapitresDispos.map(ch => {
+                                    {selectedDisplayChapters.map(ch => {
                                         const chapKey = `${selectedLevel}_${ch}`;
                                         const title = chapitresDetails[chapKey]?.titre || levelComps.find(c => c.chapitre === ch)?.chapitreNom || "";
                                         return (
@@ -934,7 +932,13 @@ export default function SkillsMatrixTab() {
                                             </label>
                                         )
                                     })}
+                                    {selectedDisplayChapters.length === 0 && (
+                                        <div className="col-span-2 text-xs text-slate-400 italic">Aucun chapitre sélectionné dans la grille.</div>
+                                    )}
                                 </div>
+                                <p className="text-[10px] text-slate-400 mt-2 italic text-center">
+                                    Seuls les chapitres actuellement affichés dans la grille peuvent être imprimés.
+                                </p>
                             </div>
                         </div>
 
@@ -942,7 +946,7 @@ export default function SkillsMatrixTab() {
                             <button onClick={() => setPrintConfig(null)} className="px-5 py-2.5 font-bold text-slate-500 hover:bg-slate-200 rounded-xl transition-colors">
                                 Annuler
                             </button>
-                            <button onClick={handleGeneratePDF} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-md">
+                            <button onClick={handleGeneratePDF} disabled={printConfig.selectedChapters.length === 0} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:scale-105 transition-transform flex items-center gap-2 shadow-md disabled:opacity-50 disabled:scale-100">
                                 <Icon name="check-circle" weight="fill" /> Générer PDF
                             </button>
                         </div>
@@ -967,7 +971,7 @@ export default function SkillsMatrixTab() {
                             <p className="text-xs font-bold text-slate-500 uppercase mb-3">1. Sélectionner les élèves :</p>
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-40 overflow-y-auto mb-6">
                                 <button onClick={selectAllBulkStudents} className="text-xs font-bold text-indigo-600 mb-2 hover:underline">
-                                    Tout cocher
+                                    Tout cocher (Affichés)
                                 </button>
                                 <div className="grid grid-cols-2 gap-2">
                                     {visibleStudents.map(stu => (
