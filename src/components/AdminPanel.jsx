@@ -9,7 +9,9 @@ import MessagesTab from './AdminPanel/MessagesTab';
 import ContentTab from './AdminPanel/ContentTab';
 import ConfigTab from './AdminPanel/ConfigTab';
 import ListTab from './AdminPanel/ListTab';
-import EvaluationsTab from './AdminPanel/EvaluationsTab'; // NOUVEAU : Import de l'onglet Évaluations
+import EvaluationsTab from './AdminPanel/EvaluationsTab';
+import AutoBankTab from './AdminPanel/AutoBankTab'; // NOUVEAU
+import FlashTestsTab from './AdminPanel/FlashTestsTab'; // NOUVEAU
 
 // Import de la gestion des cours
 import CoursesAdmin from './CoursesAdmin/index.jsx';
@@ -76,8 +78,12 @@ export default function AdminPanel({ user, onBack }) {
                     <div className="flex gap-2 border-b border-slate-300 overflow-x-auto custom-scrollbar pb-1">
                         <TabButton id="USERS" label="Utilisateurs" icon="users" />
 
-                        {/* NOUVEAU : Bouton Évaluations */}
+                        {/* Bouton Évaluations */}
                         <TabButton id="EVALUATIONS" label="Évaluations" icon="exam" />
+
+                        {/* NOUVEAU : Boutons Automatismes */}
+                        <TabButton id="AUTO_BANK" label="Banque d'Images" icon="images" />
+                        <TabButton id="FLASH_TESTS" label="Flash-Tests" icon="lightning" />
 
                         {/* ONGLETS : Compétences */}
                         <TabButton id="SKILLS" label="Compétences" icon="target" />
@@ -115,8 +121,12 @@ export default function AdminPanel({ user, onBack }) {
                         {/* UsersTab n'a plus besoin de props ! */}
                         {admin.activeTab === 'USERS' && <UsersTab />}
 
-                        {/* NOUVEAU : Affichage du composant EvaluationsTab */}
+                        {/* Affichage du composant EvaluationsTab */}
                         {admin.activeTab === 'EVALUATIONS' && <EvaluationsTab />}
+
+                        {/* NOUVEAU : Affichage des composants Automatismes */}
+                        {admin.activeTab === 'AUTO_BANK' && <AutoBankTab />}
+                        {admin.activeTab === 'FLASH_TESTS' && <FlashTestsTab />}
 
                         {admin.activeTab === 'SKILLS' && <SkillsMatrixTab />}
                         {admin.activeTab === 'SKILLS_EDITOR' && <SkillsEditorTab />}

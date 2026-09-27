@@ -144,7 +144,6 @@ const getMatrixHTML = (studentsList, compsToPrint, matrixData, selectedLevel) =>
         </div>
     `;
 
-    // --- NOUVEAU : LA LÉGENDE DES COMPÉTENCES ---
     html += `
         <div style="margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 15px; page-break-inside: avoid;">
             <h3 style="font-size: 14px; color: #0f172a; margin-bottom: 10px; text-transform: uppercase;">Légende des Compétences</h3>
@@ -188,7 +187,6 @@ export const generateSkillsPDF = ({
         return false;
     }
 
-    // --- TRI INTELLIGENT POUR LE PDF ---
     const compsToPrint = levelComps
         .filter(c => selectedChapters.includes(c.chapitre))
         .sort((a, b) => {
@@ -257,10 +255,176 @@ export const generateSkillsPDF = ({
 
     printWindow.document.write(fullHtml);
     printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 500);
+    return true;
+};
 
-    setTimeout(() => {
-        printWindow.print();
-    }, 300);
+// ============================================================================
+// NOUVEAU : GÉNÉRATEUR AUTOMATIQUE DE REMÉDIATION (FLASH-TESTS)
+// ============================================================================
+export const generateRemediationPDF = ({
+    visibleStudents, autoMatrixData, autoQuestions, remedConfig
+}) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        toast.error("Veuillez autoriser les pop-ups pour générer le PDF.");
+        return false;
+    }
 
+    let fullHtml = `
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title>Fiches de Remédiation Ciblée</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+                body { font-family: 'Inter', sans-serif; color: #1e293b; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                
+                /* Demi-page A4 Paysage (donc une page Portrait divisée en deux) */
+                .half-page { 
+                    height: 50vh; 
+                    box-sizing: border-box; 
+                    padding: 1.5rem; 
+                    display: flex;
+                    flex-direction: column;
+                    position: relative;
+                }
+                
+                /* La ligne de découpe au centre */
+                .cut-line {
+                    position: absolute;
+                    bottom: 0;
+                    left: 2rem;
+                    right: 2rem;
+                    border-bottom: 2px dashed #94a3b8;
+                    display: flex;
+                    align-items: center;
+                }
+                .cut-line::before {
+                    content: "✂️";
+                    position: absolute;
+                    left: -20px;
+                    top: -12px;
+                    font-size: 18px;
+                }
+
+                .page-break { page-break-after: always; break-after: page; }
+                
+                .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #10b981; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+                .header h1 { margin: 0; font-size: 20px; color: #0f172a; font-weight: 900; text-transform: uppercase; }
+                .header h2 { margin: 0; color: #10b981; font-size: 16px; font-weight: 900; }
+                
+                /* Grille pour les images de questions */
+                .q-grid { 
+                    display: grid; 
+                    grid-template-columns: repeat(2, 1fr); /* 2 colonnes par défaut */
+                    gap: 1rem; 
+                    flex: 1;
+                    min-height: 0; /* Important pour que les images s'adaptent */
+                }
+                .q-item {
+                    border: 2px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 0.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    background: #f8fafc;
+                }
+                .q-theme {
+                    font-size: 10px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    background: #10b981;
+                    color: white;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    margin-bottom: 5px;
+                }
+                .q-img {
+                    max-width: 100%;
+                    max-height: 120px; /* Limite la hauteur pour que ça rentre */
+                    object-fit: contain;
+                }
+                
+                .bravo {
+                    text-align: center;
+                    font-size: 20px;
+                    font-weight: 900;
+                    color: #10b981;
+                    margin-top: 3rem;
+                }
+
+                @media print { 
+                    @page { margin: 0; }
+                    body { padding: 0; } 
+                }
+            </style>
+        </head>
+        <body>
+    `;
+
+    let renderCount = 0;
+
+    visibleStudents.forEach((stu, idx) => {
+        // 1. Identifier les thèmes faibles de l'élève (<= au seuil)
+        const stuData = autoMatrixData[stu.id] || {};
+        const weakThemes = Object.keys(stuData).filter(theme => stuData[theme].pourcentage <= remedConfig.threshold);
+
+        // 2. Récupérer toutes les questions dispo pour ces thèmes
+        let availableQs = autoQuestions.filter(q => weakThemes.includes(q.theme));
+
+        // 3. Mélanger (Shuffle)
+        availableQs = availableQs.sort(() => 0.5 - Math.random());
+
+        // 4. Prendre le maximum demandé
+        const selectedQs = availableQs.slice(0, remedConfig.maxQuestions);
+
+        // 5. Générer le HTML de la demi-page
+        fullHtml += `
+            <div class="half-page">
+                <div class="header">
+                    <div>
+                        <h1>Entraînement Ciblé</h1>
+                        <span style="font-size:12px; color:#64748b;">Généré automatiquement suite aux derniers tests</span>
+                    </div>
+                    <div>
+                        <h2>${stu.nom}</h2>
+                        <span style="font-size:12px; color:#64748b; font-weight:bold; float:right;">Classe : ${stu.classe}</span>
+                    </div>
+                </div>
+                
+                ${selectedQs.length === 0 ?
+                `<div class="bravo">Bravo !<br><span style="font-size:14px; color:#64748b;">Tu n'as aucune faiblesse détectée sur les thèmes testés. Continue comme ça ! 😎</span></div>` :
+                `<div class="q-grid" style="grid-template-columns: repeat(${remedConfig.maxQuestions > 2 ? 2 : 1}, 1fr);">
+                        ${selectedQs.map(q => `
+                            <div class="q-item">
+                                <span class="q-theme">${q.theme}</span>
+                                <img class="q-img" src="${q.imageUrl}" />
+                            </div>
+                        `).join('')}
+                    </div>`
+            }
+                
+                ${renderCount % 2 === 0 ? '<div class="cut-line"></div>' : ''}
+            </div>
+        `;
+
+        renderCount++;
+
+        // Toutes les 2 demi-pages, on saute une page (sauf si c'est la toute fin)
+        if (renderCount % 2 === 0 && idx < visibleStudents.length - 1) {
+            fullHtml += `<div class="page-break"></div>`;
+        }
+    });
+
+    fullHtml += `</body></html>`;
+
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+
+    // On attend un peu plus longtemps pour que les images aient le temps de charger avant l'impression
+    setTimeout(() => { printWindow.print(); }, 1000);
     return true;
 };
